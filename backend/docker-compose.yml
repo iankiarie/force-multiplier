@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: forcemultiplier-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forcemultiplier
+      POSTGRES_USER: forcemultiplier
+      POSTGRES_PASSWORD: forcemultiplier
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+
+  api:
+    build:
+      context: .
+      network: host
+    container_name: forcemultiplier-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic  # If we use alembic later, but for now we can skip or note.
+
+volumes:
+  postgres_data:

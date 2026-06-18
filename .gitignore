@@ -1,0 +1,68 @@
+# ============================================================
+# ForceMultiplier Monorepo .gitignore
+# Android (Kotlin/Gradle) + Backend (Python/FastAPI)
+# ============================================================
+
+# ── Android ─────────────────────────────────────────────────
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+
+# Android Studio / IntelliJ
+android/.idea/
+android/**/*.iml
+android/gradle/wrapper/gradle-wrapper.jar
+
+# Keystore files
+*.jks
+*.keystore
+
+# ── Python / FastAPI Backend ─────────────────────────────────
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/**/*.pyd
+backend/.Python
+backend/venv/
+backend/.venv/
+backend/env/
+backend/.env
+backend/dist/
+backend/build/
+backend/*.egg-info/
+backend/.eggs/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+backend/coverage.xml
+
+# Alembic generated (keep migrations, ignore cache)
+backend/alembic/__pycache__/
+
+# ── Shared / OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+.env
+.env.*
+!.env.example
+
+# ── Docs ─────────────────────────────────────────────────────
+docs/_build/
