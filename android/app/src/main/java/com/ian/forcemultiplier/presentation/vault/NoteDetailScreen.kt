@@ -51,6 +51,7 @@ fun NoteDetailScreen(
     navController: NavController,
     noteId: String? = null,
     parentId: String? = null,
+    template: String? = null,
     viewModel: VaultViewModel = hiltViewModel()
 ) {
     // ─── State ──────────────────────────────────────────────────────────────
@@ -82,6 +83,13 @@ fun NoteDetailScreen(
             viewModel.getNoteById(noteId)
         } else {
             viewModel.clearCurrentNote()
+            // Pre-fill from template if provided
+            if (template != null) {
+                val decoded = try { java.net.URLDecoder.decode(template, "UTF-8") } catch (_: Exception) { template }
+                val parts = decoded.split("|", limit = 2)
+                if (parts.isNotEmpty()) title = parts[0]
+                if (parts.size > 1) contentState = TextFieldValue(parts[1])
+            }
             isInitialLoad = false
         }
     }
