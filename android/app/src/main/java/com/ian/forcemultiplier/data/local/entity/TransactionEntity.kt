@@ -11,8 +11,8 @@ import androidx.room.ForeignKey
     foreignKeys = [ForeignKey(entity = UserEntity::class, parentColumns = ["id"], childColumns = ["user_id"])]
 )
 data class TransactionEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    @PrimaryKey
+    val id: String,
     @ColumnInfo(name = "amount")
     val amount: Int, // Can be negative or positive
     @ColumnInfo(name = "type")
@@ -22,5 +22,5 @@ data class TransactionEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "user_id")
-    val userId: Int
+    val userId: String
 )

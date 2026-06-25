@@ -9,11 +9,13 @@ import com.ian.forcemultiplier.data.local.entity.NoteEntity
 import com.ian.forcemultiplier.data.local.entity.PredictionEntity
 import com.ian.forcemultiplier.data.local.entity.TransactionEntity
 import com.ian.forcemultiplier.data.local.entity.UserEntity
+import com.ian.forcemultiplier.data.local.entity.SyncEntity
 import com.ian.forcemultiplier.data.local.dao.BetDao
 import com.ian.forcemultiplier.data.local.dao.NoteDao
 import com.ian.forcemultiplier.data.local.dao.PredictionDao
 import com.ian.forcemultiplier.data.local.dao.TransactionDao
 import com.ian.forcemultiplier.data.local.dao.UserDao
+import com.ian.forcemultiplier.data.local.dao.SyncDao
 
 @Database(
     entities = [
@@ -21,9 +23,10 @@ import com.ian.forcemultiplier.data.local.dao.UserDao
         PredictionEntity::class,
         BetEntity::class,
         TransactionEntity::class,
-        NoteEntity::class
+        NoteEntity::class,
+        SyncEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -32,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun betDao(): BetDao
     abstract fun transactionDao(): TransactionDao
     abstract fun noteDao(): NoteDao
+    abstract fun syncDao(): SyncDao
 
     companion object {
         @Volatile

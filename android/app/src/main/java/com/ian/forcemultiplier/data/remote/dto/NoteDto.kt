@@ -1,13 +1,20 @@
 package com.ian.forcemultiplier.data.remote.dto
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class NoteDto(
-    @SerializedName("id") val id: Int,
-    @SerializedName("title") val title: String,
-    @SerializedName("content") val content: String,
-    @SerializedName("tags") val tags: String?,
-    @SerializedName("created_at") val createdAt: Long,
-    @SerializedName("updated_at") val updatedAt: Long?,
-    @SerializedName("user_id") val userId: Int
+    @SerialName("id") val id: String? = null,
+    @SerialName("title") val title: String,
+    @SerialName("content") val content: String?,
+    @SerialName("tags") val tags: String? = null,
+    @SerialName("preview") val preview: String? = null,
+    @SerialName("parent_id") val parentId: String? = null,
+    @SerialName("icon") val icon: String? = null,
+    @SerialName("cover_url") val coverUrl: String? = null,
+    @SerialName("is_bookmarked") val isBookmarked: Boolean = false,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("user_id") val userId: String?
 )

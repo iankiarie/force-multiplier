@@ -10,7 +10,7 @@ import com.ian.forcemultiplier.data.local.entity.UserEntity
 @Dao
 interface UserDao {
     @Query("SELECT * FROM userentity WHERE id = :userId")
-    suspend fun getUserById(userId: Int): UserEntity?
+    suspend fun getUserById(userId: String): UserEntity?
 
     @Query("SELECT * FROM userentity WHERE email = :email")
     suspend fun getUserByEmail(email: String): UserEntity?

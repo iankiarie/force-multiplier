@@ -1,15 +1,22 @@
 package com.ian.forcemultiplier.data.remote.dto
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class UserDto(
-    @SerializedName("id") val id: Int,
-    @SerializedName("email") val email: String,
-    @SerializedName("username") val username: String,
-    @SerializedName("full_name") val fullName: String?,
-    @SerializedName("is_active") val isActive: Boolean,
-    @SerializedName("role") val role: String,
-    @SerializedName("points") val points: Int,
-    @SerializedName("created_at") val createdAt: Long,
-    @SerializedName("updated_at") val updatedAt: Long?
+    @SerialName("id") val id: String,
+    @SerialName("email") val email: String,
+    @SerialName("username") val username: String,
+    @SerialName("full_name") val fullName: String? = null,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("role") val role: String? = "user",
+    @SerialName("points") val points: Int = 0,
+    @SerialName("streak") val streak: Int = 0,
+    @SerialName("accuracy") val accuracy: Float = 0f,
+    @SerialName("daily_points") val dailyPoints: Int = 0,
+    @SerialName("rank") val rank: Int? = null,
+    @SerialName("location") val location: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null
 )

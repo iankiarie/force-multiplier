@@ -14,8 +14,8 @@ import androidx.room.ForeignKey
     ]
 )
 data class BetEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    @PrimaryKey
+    val id: String,
     @ColumnInfo(name = "stake")
     val stake: Int,
     @ColumnInfo(name = "chosen_outcome")
@@ -27,7 +27,7 @@ data class BetEntity(
     @ColumnInfo(name = "settled_at")
     val settledAt: Long? = null,
     @ColumnInfo(name = "user_id")
-    val userId: Int,
+    val userId: String,
     @ColumnInfo(name = "prediction_id")
-    val predictionId: Int
+    val predictionId: String
 )

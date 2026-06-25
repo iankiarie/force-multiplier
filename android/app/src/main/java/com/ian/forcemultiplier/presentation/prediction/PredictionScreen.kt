@@ -92,7 +92,7 @@ fun PredictionScreen(
 @Composable
 fun PredictionCard(prediction: PredictionDto) {
     var expanded by remember { mutableStateOf(false) }
-    var selectedOptionId by remember { mutableStateOf<Int?>(null) }
+    var selectedOptionId by remember { mutableStateOf<String?>(null) }
 
     FMCard(
         onClick = { expanded = !expanded },
@@ -120,7 +120,7 @@ fun PredictionCard(prediction: PredictionDto) {
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = formatDeadline(prediction.deadline),
+                        text = formatDeadline(prediction.endsAt),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary,
                         fontWeight = FontWeight.Bold,
@@ -158,7 +158,7 @@ fun PredictionCard(prediction: PredictionDto) {
                                 containerColor = if (selectedOptionId == option.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                                 contentColor = if (selectedOptionId == option.id) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                             ) {
-                                Text(option.text)
+                                Text(option.optionText)
                             }
                         }
                     }
@@ -178,7 +178,11 @@ fun PredictionCard(prediction: PredictionDto) {
     }
 }
 
-fun formatDeadline(deadline: Long): String {
-    val sdf = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-    return sdf.format(Date(deadline))
+fun formatDeadline(deadline: String): String {
+    return try {
+        // Supabase returns ISO strings. Simple substring for display
+        deadline.replace("T", " ").substringBefore(".")
+    } catch (e: Exception) {
+        deadline
+    }
 }

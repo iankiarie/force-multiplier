@@ -1,9 +1,6 @@
 package com.ian.forcemultiplier.util
 
 object Constants {
-    /**
-     * Docker mapping: Host 8001 -> Container 8000
-     * Using computer local IP for physical device connection.
-     */
-    const val BASE_URL = "http://192.168.228.6:8001/"
+    const val SUPABASE_URL = "https://gaawwwfkjhlapsnwnupi.supabase.co"
+    const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhYXd3d2ZramhsYXBzbndudXBpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4NjcxMjQsImV4cCI6MjA5NzQ0MzEyNH0.EWTTJm7o8GLR98icnGxxIXoh6JZz2I8eCfMxNh8TF_E"
 }

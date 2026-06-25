@@ -4,13 +4,19 @@ package com.ian.forcemultiplier.domain.model
  * User domain model representing a user in the system.
  */
 data class User(
-    val id: Int,
+    val id: String, // UUID from Auth
     val email: String,
-    val username: String,
+    val username: String?,
     val fullName: String?,
+    val avatarUrl: String?,
+    val organizationId: String?,
     val isActive: Boolean,
-    val role: String, // In a real app, we might use an enum or a sealed class for role.
-    val points: Int, // Current points balance (sum of transactions)
-    val createdAt: Long, // Timestamp in milliseconds
-    val updatedAt: Long? // Timestamp in milliseconds
+    val role: UserRole,
+    val points: Int,
+    val createdAt: Long,
+    val updatedAt: Long?
 )
+
+enum class UserRole {
+    EMPLOYEE, MANAGER, ADMIN, SUPER_ADMIN
+}

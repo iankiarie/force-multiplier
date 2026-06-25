@@ -1,15 +1,26 @@
 package com.ian.forcemultiplier.domain.model
 
-/**
- * Prediction domain model representing a prediction that users can bet on.
- */
 data class Prediction(
-    val id: Int,
+    val id: String,
     val title: String,
     val description: String?,
-    val outcome: String?, // team_a, team_b, draw, or null if not resolved
-    val deadline: Long, // Timestamp in milliseconds
-    val createdAt: Long,
+    val category: String?,
+    val createdBy: String,
+    val endsAt: Long,
     val resolvedAt: Long?,
-    val createdBy: Int // User ID of the creator
+    val winningOptionId: String?,
+    val status: PredictionStatus,
+    val options: List<PredictionOption>,
+    val createdAt: Long
 )
+
+data class PredictionOption(
+    val id: String,
+    val predictionId: String,
+    val optionText: String,
+    val totalStake: Int
+)
+
+enum class PredictionStatus {
+    ACTIVE, RESOLVED, CANCELLED
+}

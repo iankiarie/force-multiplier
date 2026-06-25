@@ -11,16 +11,16 @@ import com.ian.forcemultiplier.data.local.entity.BetEntity
 @Dao
 interface BetDao {
     @Query("SELECT * FROM betentity WHERE id = :betId")
-    suspend fun getBetById(betId: Int): BetEntity?
+    suspend fun getBetById(betId: String): BetEntity?
 
     @Query("SELECT * FROM betentity WHERE user_id = :userId ORDER BY created_at DESC")
-    suspend fun getBetsByUser(userId: Int): List<BetEntity>
+    suspend fun getBetsByUser(userId: String): List<BetEntity>
 
     @Query("SELECT * FROM betentity WHERE prediction_id = :predictionId")
-    suspend fun getBetsByPrediction(predictionId: Int): List<BetEntity>
+    suspend fun getBetsByPrediction(predictionId: String): List<BetEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBet(bet: BetEntity): Long
+    suspend fun insertBet(bet: BetEntity)
 
     @Update
     suspend fun updateBet(bet: BetEntity): Int

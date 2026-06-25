@@ -1,39 +1,32 @@
-package com.ian.forcemultiplier.presentation.dashboard.viewmodel
+package com.ian.forcemultiplier.presentation.profile.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ian.forcemultiplier.data.remote.dto.ActivityDto
 import com.ian.forcemultiplier.data.remote.dto.UserDto
 import com.ian.forcemultiplier.domain.repository.DashboardRepository
 import com.ian.forcemultiplier.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class DashboardViewModel @Inject constructor(
-    private val repository: DashboardRepository
+class ProfileViewModel @Inject constructor(
+    private val repository: DashboardRepository,
+    private val supabaseClient: SupabaseClient
 ) : ViewModel() {
 
     private val _userState = MutableStateFlow<Resource<UserDto>>(Resource.Loading())
-    val userState: StateFlow<Resource<UserDto>> = _userState.asStateFlow()
-
-    private val _activityState = MutableStateFlow<Resource<List<ActivityDto>>>(Resource.Loading())
-    val activityState: StateFlow<Resource<List<ActivityDto>>> = _activityState.asStateFlow()
+    val userState: StateFlow<Resource<UserDto>> = _userState
 
     init {
-        loadData()
+        loadProfile()
     }
 
-    fun loadData() {
-        loadCurrentUser()
-        loadTeamActivity()
-    }
-
-    private fun loadCurrentUser() {
+    fun loadProfile() {
         viewModelScope.launch {
             repository.getCurrentUser().collect { result ->
                 _userState.value = result
@@ -41,10 +34,13 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun loadTeamActivity() {
+    fun logout(onSuccess: () -> Unit) {
         viewModelScope.launch {
-            repository.getTeamActivity().collect { result ->
-                _activityState.value = result
+            try {
+                supabaseClient.auth.signOut()
+                onSuccess()
+            } catch (e: Exception) {
+                // Handle error
             }
         }
     }

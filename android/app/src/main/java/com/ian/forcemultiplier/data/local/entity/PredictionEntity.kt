@@ -7,24 +7,24 @@ import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
 
 @Entity(
-    indices = [Index(value = ["deadline"]), Index(value = ["created_by"])],
+    indices = [Index(value = ["ends_at"]), Index(value = ["created_by"])],
     foreignKeys = [ForeignKey(entity = UserEntity::class, parentColumns = ["id"], childColumns = ["created_by"])]
 )
 data class PredictionEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    @PrimaryKey
+    val id: String,
     @ColumnInfo(name = "title")
     val title: String,
     @ColumnInfo(name = "description")
     val description: String?,
     @ColumnInfo(name = "outcome")
     val outcome: String?, // We'll store as string, or use an enum class with Room
-    @ColumnInfo(name = "deadline")
-    val deadline: Long, // Store as timestamp (milliseconds)
+    @ColumnInfo(name = "ends_at")
+    val endsAt: Long, // Store as timestamp (milliseconds)
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "resolved_at")
     val resolvedAt: Long? = null,
     @ColumnInfo(name = "created_by")
-    val createdBy: Int
+    val createdBy: String
 )

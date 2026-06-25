@@ -1,12 +1,13 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-kapt'
+apply plugin: 'com.google.devtools.ksp'
 apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
 apply plugin: 'com.google.dagger.hilt.android'
 
 android {
     namespace 'com.ian.forcemultiplier'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.ian.forcemultiplier"
@@ -52,19 +53,29 @@ dependencies {
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.ui:ui-text-google-fonts'
     implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-extended'
     implementation 'androidx.navigation:navigation-compose:2.8.5'
     implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3"
+
+    // Supabase
+    implementation platform("io.github.jan-tennert.supabase:bom:3.6.0")
+    implementation "io.github.jan-tennert.supabase:postgrest-kt"
+    implementation "io.github.jan-tennert.supabase:auth-kt"
+    implementation "io.github.jan-tennert.supabase:storage-kt"
+    implementation "io.ktor:ktor-client-android:3.0.1"
 
     // Hilt
-    implementation "com.google.dagger:hilt-android:2.52"
-    kapt "com.google.dagger:hilt-compiler:2.52"
+    implementation "com.google.dagger:hilt-android:2.59.2"
+    ksp "com.google.dagger:hilt-compiler:2.59.2"
 
     // Room
-    def room_version = "2.6.1"
+    def room_version = "2.8.4"
     implementation "androidx.room:room-runtime:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
-    kapt "androidx.room:room-compiler:$room_version"
+    ksp "androidx.room:room-compiler:$room_version"
 
     // DataStore (theme preferences)
     implementation 'androidx.datastore:datastore-preferences:1.1.1'

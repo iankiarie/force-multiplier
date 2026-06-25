@@ -11,8 +11,8 @@ import androidx.room.ForeignKey
     foreignKeys = []
 )
 data class UserEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    @PrimaryKey
+    val id: String,
     @ColumnInfo(name = "email")
     val email: String,
     @ColumnInfo(name = "username")
@@ -20,13 +20,23 @@ data class UserEntity(
     @ColumnInfo(name = "full_name")
     val fullName: String?,
     @ColumnInfo(name = "hashed_password")
-    val hashedPassword: String,
+    val hashedPassword: String? = null,
     @ColumnInfo(name = "is_active")
     val isActive: Boolean = true,
     @ColumnInfo(name = "role")
-    val role: String = "user", // We'll store as string for simplicity, or use an enum class with Room
+    val role: String = "user",
     @ColumnInfo(name = "points")
     val points: Int = 0,
+    @ColumnInfo(name = "streak")
+    val streak: Int = 0,
+    @ColumnInfo(name = "accuracy")
+    val accuracy: Float = 0f,
+    @ColumnInfo(name = "daily_points")
+    val dailyPoints: Int = 0,
+    @ColumnInfo(name = "rank")
+    val rank: Int? = null,
+    @ColumnInfo(name = "location")
+    val location: String? = null,
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at")

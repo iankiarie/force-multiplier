@@ -1,298 +1,413 @@
 package com.ian.forcemultiplier.presentation.profile
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import android.content.Intent
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ian.forcemultiplier.R
-import com.ian.forcemultiplier.core.designsystem.FMCard
 import com.ian.forcemultiplier.core.theme.AppTheme
-import com.ian.forcemultiplier.core.theme.FMColors
+import com.ian.forcemultiplier.presentation.login.ui.LoginActivity
+import com.ian.forcemultiplier.presentation.profile.viewmodel.ProfileViewModel
+import com.ian.forcemultiplier.util.Resource
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+private val BgDark       = Color(0xFF0B0F14)
+private val SurfaceDark  = Color(0xFF151B23)
+private val Surface2Dark = Color(0xFF1C2128)
+private val BorderDark   = Color(0xFF30363D)
+private val MutedText    = Color(0xFF8B949E)
+private val GreenPrimary = Color(0xFF2ED573)
+private val OnSurface    = Color(0xFFE6EDF3)
+private val ErrorRed     = Color(0xFFFF4757)
 
 @Composable
 fun ProfileScreen(
     navController: NavController,
-    onThemeChange: (AppTheme) -> Unit = {}
+    onThemeChange: (AppTheme) -> Unit = {},
+    viewModel: ProfileViewModel = hiltViewModel()
 ) {
+    val userState by viewModel.userState.collectAsState()
+    var selectedTheme by remember { mutableStateOf(AppTheme.DARK) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(BgDark)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
     ) {
         Spacer(modifier = Modifier.height(32.dp))
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
 
-        // ── Profile Header ────────────────────────────────────
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_person),
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+            // ── Section header ──────────────────────────────────────────
             Text(
-                text = "Ian Kiarie",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onSurface
+                text = "Profile",
+                color = OnSurface,
+                fontWeight = FontWeight.Bold,
+                fontSize = 28.sp,
+                letterSpacing = (-0.5).sp
             )
-            Text(
-                text = "ian@forcemultiplier.co  ·  Senior Engineer",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Surface(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Text(
-                    text = "Force Multiplier Candidate  •  #3",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-            }
-        }
+            Spacer(modifier = Modifier.height(24.dp))
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // ── Stats Row ─────────────────────────────────────────
-        FMCard {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem("3,240", "Points")
-                StatDivider()
-                StatItem("78%", "Accuracy")
-                StatDivider()
-                StatItem("12", "Streak")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // ── Theme Selector ────────────────────────────────────
-        Text(
-            text = "Appearance",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        FMCard {
-            Column(modifier = Modifier.padding(4.dp)) {
-                AppTheme.entries.forEach { theme ->
-                    ThemeOptionRow(
-                        theme = theme,
-                        onSelect = { onThemeChange(theme) }
+            // ── User card ───────────────────────────────────────────────
+            when (val state = userState) {
+                is Resource.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = GreenPrimary, strokeWidth = 2.dp)
+                    }
+                }
+                is Resource.Error -> {
+                    // Offline placeholder
+                    ProfileHeader(
+                        name = "Your Profile",
+                        email = "Offline",
+                        initials = "?"
                     )
                 }
-            }
-        }
+                is Resource.Success -> {
+                    val user = state.data
+                    if (user != null) {
+                        ProfileHeader(
+                            name = user.fullName ?: user.username,
+                            email = user.email,
+                            initials = (user.fullName ?: user.username)
+                                .split(" ")
+                                .mapNotNull { it.firstOrNull()?.toString() }
+                                .take(2)
+                                .joinToString("")
+                                .uppercase()
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // ── Activity Heatmap ─────────────────────────────────
-        Text(
-            text = "Activity",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        FMCard {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    repeat(26) { week ->
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            repeat(7) { day ->
-                                val level = ((week * 7 + day) % 5)
-                                val alpha = when (level) {
-                                    0 -> 0.08f
-                                    1 -> 0.2f
-                                    2 -> 0.45f
-                                    3 -> 0.7f
-                                    else -> 1.0f
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(FMColors.Primary.copy(alpha = alpha))
-                                )
-                            }
+                        // ── Stats grid ──────────────────────────────────
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            StatCard(
+                                value = user.points.toString(),
+                                label = "Points",
+                                modifier = Modifier.weight(1f),
+                                accent = GreenPrimary
+                            )
+                            StatCard(
+                                value = "${(user.accuracy * 100).toInt()}%",
+                                label = "Accuracy",
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                value = "${user.streak}d",
+                                label = "Streak",
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatCard(
+                                value = "#${user.rank ?: "-"}",
+                                label = "Rank",
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // ── Activity heatmap ────────────────────────────────────────
+            SectionLabel("Contribution Activity")
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceDark)
+                    .padding(16.dp)
+            ) {
+                Column {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        repeat(20) { week ->
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                repeat(7) { day ->
+                                    val level = (week * 7 + day) % 6
+                                    val alpha = when (level) {
+                                        0 -> 0.04f; 1 -> 0.18f; 2 -> 0.36f
+                                        3 -> 0.55f; 4 -> 0.76f; else -> 1.0f
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(9.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(GreenPrimary.copy(alpha = alpha))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        "84 contributions in the last month",
+                        color = MutedText,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // ── Appearance ──────────────────────────────────────────────
+            SectionLabel("Appearance")
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceDark)
+            ) {
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    AppTheme.entries.forEachIndexed { index, theme ->
+                        val label = when (theme) {
+                            AppTheme.SYSTEM -> "System default"
+                            AppTheme.DARK   -> "Dark"
+                            AppTheme.LIGHT  -> "Light"
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedTheme = theme
+                                    onThemeChange(theme)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selectedTheme == theme) OnSurface else MutedText,
+                                fontSize = 14.sp,
+                                fontWeight = if (selectedTheme == theme) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            RadioButton(
+                                selected = selectedTheme == theme,
+                                onClick = { selectedTheme = theme; onThemeChange(theme) },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = GreenPrimary,
+                                    unselectedColor = MutedText
+                                )
+                            )
+                        }
+                        if (index < AppTheme.entries.size - 1) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = BorderDark
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Account section ─────────────────────────────────────────
+            SectionLabel("Account")
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceDark)
+            ) {
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    AccountRow("Notifications", showChevron = true) {}
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = BorderDark)
+                    AccountRow("Privacy Policy", showChevron = true) {}
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = BorderDark)
+                    AccountRow("Terms of Service", showChevron = true) {}
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = BorderDark)
+                    AccountRow("App version  1.0.0", valueText = "1.0.0", showChevron = false) {}
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Logout ──────────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(ErrorRed.copy(alpha = 0.08f))
+                    .border(1.dp, ErrorRed.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+                    .clickable {
+                        viewModel.logout {
+                            val ctx = navController.context
+                            ctx.startActivity(
+                                Intent(ctx, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                }
+                            )
+                        }
+                    }
+                    .padding(16.dp)
+            ) {
                 Text(
-                    text = "Last 26 weeks of activity",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Sign out",
+                    color = ErrorRed,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
+
+            Spacer(modifier = Modifier.height(120.dp))
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(24.dp))
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-        // ── Achievements Grid ─────────────────────────────────
-        Text(
-            text = "Achievements",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        val achievements = listOf(
-            Achievement("Top 3 Finisher",    "Bronze", FMColors.Bronze),
-            Achievement("12 Day Streak",     "Silver", FMColors.Silver),
-            Achievement("Knowledge Guru",    "Gold",   FMColors.Gold),
-            Achievement("Prediction Master", "Epic",   FMColors.BadgeEpic),
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+@Composable
+private fun ProfileHeader(name: String, email: String, initials: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Avatar with gradient initials
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF2ED573), Color(0xFF17C3B2))
+                    )
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            achievements.take(2).forEach { AchievementCard(it, Modifier.weight(1f)) }
+            Text(
+                text = initials.ifBlank { "?" },
+                color = Color.Black,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 22.sp
+            )
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            achievements.drop(2).forEach { AchievementCard(it, Modifier.weight(1f)) }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(
+                text = name,
+                color = OnSurface,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Text(
+                text = email,
+                color = MutedText,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(SurfaceDark)
+                    .border(1.dp, BorderDark, RoundedCornerShape(6.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text("Edit profile", color = MutedText, fontSize = 12.sp)
+            }
         }
-
-        Spacer(modifier = Modifier.height(100.dp))
     }
 }
 
 @Composable
-private fun StatItem(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun StatDivider() {
+private fun StatCard(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+    accent: Color = OnSurface
+) {
     Box(
-        modifier = Modifier
-            .height(32.dp)
-            .width(1.dp)
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+        modifier = modifier
+            .height(72.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceDark)
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = value,
+                color = accent,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 16.sp
+            )
+            Text(
+                text = label,
+                color = MutedText,
+                fontSize = 10.sp,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        color = MutedText,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.8.sp
     )
 }
 
 @Composable
-private fun ThemeOptionRow(theme: AppTheme, onSelect: () -> Unit) {
-    val label = when (theme) {
-        AppTheme.SYSTEM -> "System default"
-        AppTheme.DARK   -> "Dark"
-        AppTheme.LIGHT  -> "Light"
-    }
-    val sublabel = when (theme) {
-        AppTheme.SYSTEM -> "Follow device setting"
-        AppTheme.DARK   -> "Dark background"
-        AppTheme.LIGHT  -> "Light background"
-    }
+private fun AccountRow(
+    label: String,
+    valueText: String? = null,
+    showChevron: Boolean = true,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onSelect)
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = sublabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Icon(
-            painter = painterResource(id = R.drawable.ic_add),
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        Text(
+            text = label,
+            color = OnSurface,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f)
         )
-    }
-}
-
-@Composable
-private fun AchievementCard(achievement: Achievement, modifier: Modifier = Modifier) {
-    FMCard(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = achievement.title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = achievement.level,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = achievement.color
-            )
+        if (valueText != null) {
+            Text(text = valueText, color = MutedText, fontSize = 13.sp)
+        }
+        if (showChevron) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(">", color = MutedText, fontSize = 12.sp)
         }
     }
 }
 
+// Keep the data class accessible from ProfileScreen (no-op now, moved inline)
 data class Achievement(
     val title: String,
     val level: String,

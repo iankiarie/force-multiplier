@@ -11,13 +11,13 @@ import com.ian.forcemultiplier.data.local.entity.TransactionEntity
 @Dao
 interface TransactionDao {
     @Query("SELECT * FROM transactionentity WHERE id = :transactionId")
-    suspend fun getTransactionById(transactionId: Int): TransactionEntity?
+    suspend fun getTransactionById(transactionId: String): TransactionEntity?
 
     @Query("SELECT * FROM transactionentity WHERE user_id = :userId ORDER BY created_at DESC")
-    suspend fun getTransactionsByUser(userId: Int): List<TransactionEntity>
+    suspend fun getTransactionsByUser(userId: String): List<TransactionEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertTransaction(transaction: TransactionEntity): Long
+    suspend fun insertTransaction(transaction: TransactionEntity)
 
     @Update
     suspend fun updateTransaction(transaction: TransactionEntity): Int

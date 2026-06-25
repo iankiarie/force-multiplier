@@ -1,21 +1,26 @@
 package com.ian.forcemultiplier.data.remote.dto
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class PredictionDto(
-    @SerializedName("id") val id: Int,
-    @SerializedName("title") val title: String,
-    @SerializedName("description") val description: String?,
-    @SerializedName("outcome") val outcome: String?, // team_a, team_b, draw, or null
-    @SerializedName("deadline") val deadline: Long, // timestamp in milliseconds
-    @SerializedName("created_at") val createdAt: Long,
-    @SerializedName("resolved_at") val resolvedAt: Long?,
-    @SerializedName("created_by") val createdBy: Int,
-    @SerializedName("options") val options: List<PredictionOptionDto>
+    @SerialName("id") val id: String,
+    @SerialName("title") val title: String,
+    @SerialName("description") val description: String?,
+    @SerialName("category") val category: String? = null,
+    @SerialName("status") val status: String? = "ACTIVE",
+    @SerialName("ends_at") val endsAt: String,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("resolved_at") val resolvedAt: String? = null,
+    @SerialName("created_by") val createdBy: String?,
+    @SerialName("options") val options: List<PredictionOptionDto> = emptyList()
 )
 
+@Serializable
 data class PredictionOptionDto(
-    @SerializedName("id") val id: Int,
-    @SerializedName("text") val text: String,
-    @SerializedName("prediction_id") val predictionId: Int
+    @SerialName("id") val id: String,
+    @SerialName("option_text") val optionText: String,
+    @SerialName("prediction_id") val predictionId: String?,
+    @SerialName("total_stake") val totalStake: Int = 0
 )

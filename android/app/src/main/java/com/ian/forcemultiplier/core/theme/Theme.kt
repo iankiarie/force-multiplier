@@ -4,19 +4,31 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.googlefonts.Font
+import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import com.ian.forcemultiplier.R
 
+// ── Google Font Provider ─────────────────────────────────────────────────────
+val provider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+
+val ManropeFont = GoogleFont("Manrope")
+
 // ── Manrope Font Family ──────────────────────────────────────────────────────
 val ManropeFontFamily = FontFamily(
-    Font(R.font.manrope_regular,    FontWeight.Normal),
-    Font(R.font.manrope_medium,     FontWeight.Medium),
-    Font(R.font.manrope_semibold,   FontWeight.SemiBold),
-    Font(R.font.manrope_bold,       FontWeight.Bold),
-    Font(R.font.manrope_extrabold,  FontWeight.ExtraBold),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.ExtraLight),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.Light),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.Bold),
+    Font(googleFont = ManropeFont, fontProvider = provider, weight = FontWeight.ExtraBold),
 )
 
 // ── Typography ───────────────────────────────────────────────────────────────
@@ -111,6 +123,13 @@ internal val FMTypography = Typography(
         fontSize     = 11.sp,
         lineHeight   = 14.sp,
         letterSpacing = 0.5.sp
+    ),
+    displaySmall = TextStyle(
+        fontFamily = ManropeFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 36.sp,
+        lineHeight = 44.sp,
+        letterSpacing = 0.sp
     ),
 )
 
