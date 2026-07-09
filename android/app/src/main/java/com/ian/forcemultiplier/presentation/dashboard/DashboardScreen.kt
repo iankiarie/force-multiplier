@@ -39,9 +39,10 @@ fun DashboardScreen(
 ) {
     val userState by viewModel.userState.collectAsState()
     val activityState by viewModel.activityState.collectAsState()
+    val leaderState by viewModel.leaderState.collectAsState()
     
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color(0xFF080808),
         bottomBar = { /* Bottom nav would be here */ }
     ) { padding ->
         Column(
@@ -93,7 +94,7 @@ fun DashboardScreen(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "#${user.rank ?: "?"} in ${user.location ?: "Company"}",
+                                        text = if (user.rank != null) "#${user.rank} globally" else "Unranked  •  ${user.points} pts",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Bold
@@ -112,7 +113,11 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(32.dp))
 
                     // ── Hero Section: Force Multiplier Ring ──────────────────────
-                    ForceMultiplierHeroCard(user.points)
+                    ForceMultiplierHeroCard(
+                        points = user.points,
+                        leaderName = (leaderState as? com.ian.forcemultiplier.util.Resource.Success)?.data?.let { it.fullName ?: it.username },
+                        leaderScore = (leaderState as? com.ian.forcemultiplier.util.Resource.Success)?.data?.accuracy
+                    )
 
                     Spacer(modifier = Modifier.height(32.dp))
 
@@ -204,11 +209,11 @@ fun SectionHeader(title: String) {
 }
 
 @Composable
-fun ForceMultiplierHeroCard(points: Int) {
+fun ForceMultiplierHeroCard(points: Int, leaderName: String? = null, leaderScore: Float? = null) {
     val progress by animateFloatAsState(targetValue = (points % 1000) / 1000f, label = "progress")
     
     FMCard(
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = Color(0xFF151B23),
         borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
     ) {
         Box(
@@ -231,14 +236,14 @@ fun ForceMultiplierHeroCard(points: Int) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Jeddy Awuor",
+                    text = leaderName ?: "-",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "92.4 Score",
+                    text = leaderScore?.let { "%.1f Score".format(it * 100) } ?: "-",
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface,

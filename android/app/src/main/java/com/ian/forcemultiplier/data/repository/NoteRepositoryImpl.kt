@@ -73,10 +73,9 @@ class NoteRepositoryImpl @Inject constructor(
 
     override suspend fun createNote(note: NoteDto): Flow<Resource<NoteDto>> = flow {
         emit(Resource.Loading())
+        val user = supabaseClient.auth.currentUserOrNull()
+        val noteToInsert = note.copy(userId = user?.id ?: "demo_user")
         try {
-            val user = supabaseClient.auth.currentUserOrNull()
-            val noteToInsert = note.copy(userId = user?.id ?: "demo_user")
-
             if (user != null) {
                 // Persist to Supabase and get back the server-assigned record
                 val inserted = supabaseClient.postgrest["notes"]
@@ -93,7 +92,8 @@ class NoteRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             // Supabase failed — save locally so nothing is lost
             val localId = java.util.UUID.randomUUID().toString()
-            val fallback = note.copy(id = localId, userId = note.userId ?: "demo_user")
+            // Use noteToInsert so userId is the real auth user, not "demo_user"
+            val fallback = noteToInsert.copy(id = localId)
             try {
                 dao.insertNote(fallback.toNoteEntity())
                 emit(Resource.Success(fallback))

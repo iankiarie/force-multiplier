@@ -22,14 +22,27 @@ class ProfileViewModel @Inject constructor(
     private val _userState = MutableStateFlow<Resource<UserDto>>(Resource.Loading())
     val userState: StateFlow<Resource<UserDto>> = _userState
 
+    /** Map of "yyyy-MM-dd" -> contribution count (notes created that day) */
+    private val _contributionState = MutableStateFlow<Resource<Map<String, Int>>>(Resource.Loading())
+    val contributionState: StateFlow<Resource<Map<String, Int>>> = _contributionState
+
     init {
         loadProfile()
+        loadContributions()
     }
 
     fun loadProfile() {
         viewModelScope.launch {
             repository.getCurrentUser().collect { result ->
                 _userState.value = result
+            }
+        }
+    }
+
+    private fun loadContributions() {
+        viewModelScope.launch {
+            repository.getContributions().collect { result ->
+                _contributionState.value = result
             }
         }
     }

@@ -22,29 +22,45 @@ class DashboardRepositoryImpl @Inject constructor(
 
     override suspend fun getCurrentUser(): Flow<Resource<UserDto>> = flow {
         emit(Resource.Loading())
-        
+
         try {
             val authUser = supabaseClient.auth.currentUserOrNull()
             if (authUser != null) {
-                // 1. Try to get from local DB first
+                // 1. Try to get from local DB first (fast path)
                 val localUser = userDao.getUserById(authUser.id)
                 if (localUser != null) {
-                    emit(Resource.Success(localUser.toUserDto()))
+                    // Always override with the real auth email so the profile
+                    // shows the address the user actually signed up with.
+                    emit(Resource.Success(localUser.toUserDto().copy(email = authUser.email ?: localUser.email)))
                 }
 
-                // 2. Fetch fresh data from Supabase
+                // 2. Fetch fresh profile data from Supabase
                 val remoteUserDto = supabaseClient.postgrest["users"]
                     .select {
-                        filter {
-                            eq("id", authUser.id)
-                        }
+                        filter { eq("id", authUser.id) }
                     }.decodeSingle<UserDto>()
-                
-                // 3. Update local DB
-                userDao.insertUser(remoteUserDto.toUserEntity())
-                
-                // 4. Emit fresh data
-                emit(Resource.Success(remoteUserDto))
+
+                // 3. Always use the auth layer email (source of truth for identity)
+                val authEmail = authUser.email ?: remoteUserDto.email
+
+                // 4. Compute rank: count of users with strictly more points + 1
+                val usersAhead = try {
+                    supabaseClient.postgrest["users"]
+                        .select { filter { gt("points", remoteUserDto.points) } }
+                        .decodeList<UserDto>().size
+                } catch (_: Exception) { null }
+                val computedRank = usersAhead?.let { it + 1 }
+
+                val userWithCorrectEmail = remoteUserDto.copy(
+                    email = authEmail,
+                    rank  = computedRank ?: remoteUserDto.rank
+                )
+
+                // 5. Update local DB with corrected data
+                userDao.insertUser(userWithCorrectEmail.toUserEntity())
+
+                // 6. Emit fresh data
+                emit(Resource.Success(userWithCorrectEmail))
             } else {
                 emit(Resource.Error("User not logged in"))
             }
@@ -52,7 +68,7 @@ class DashboardRepositoryImpl @Inject constructor(
             val authUser = supabaseClient.auth.currentUserOrNull()
             val localUser = authUser?.let { userDao.getUserById(it.id) }
             if (localUser != null) {
-                emit(Resource.Success(localUser.toUserDto()))
+                emit(Resource.Success(localUser.toUserDto().copy(email = authUser?.email ?: localUser.email)))
             } else {
                 emit(Resource.Error(e.localizedMessage ?: "Unknown error"))
             }
@@ -69,7 +85,45 @@ class DashboardRepositoryImpl @Inject constructor(
                 }.decodeList<ActivityDto>()
             emit(Resource.Success(activities))
         } catch (e: Exception) {
-            emit(Resource.Error(e.localizedMessage ?: "Unknown error"))
+            // Activities table may not exist yet or RLS may block access —
+            // fall back to an empty list so the dashboard shows "No recent activity"
+            // rather than an error banner.
+            emit(Resource.Success(emptyList()))
+        }
+    }
+
+    // ----- getContributions -------------------------------------------------
+    // Fetches all notes for the current user and counts them per calendar day.
+    // Returns a map of "yyyy-MM-dd" -> count for the last 140 days.
+    override suspend fun getContributions(): Flow<Resource<Map<String, Int>>> = flow {
+        emit(Resource.Loading())
+        try {
+            val authUser = supabaseClient.auth.currentUserOrNull()
+            if (authUser == null) {
+                emit(Resource.Success(emptyMap()))
+                return@flow
+            }
+            // Re-use the notes table — count records per date on the client side.
+            val notes = supabaseClient.postgrest["notes"]
+                .select {
+                    filter { eq("user_id", authUser.id) }
+                }.decodeList<com.ian.forcemultiplier.data.remote.dto.NoteDto>()
+
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            val counts = mutableMapOf<String, Int>()
+            notes.forEach { note ->
+                val dateKey = note.createdAt?.let {
+                    runCatching {
+                        val parser = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                        parser.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                        fmt.format(parser.parse(it.take(19))!!)
+                    }.getOrNull()
+                } ?: return@forEach
+                counts[dateKey] = (counts[dateKey] ?: 0) + 1
+            }
+            emit(Resource.Success(counts))
+        } catch (e: Exception) {
+            emit(Resource.Success(emptyMap())) // non-fatal — heatmap will just show empty
         }
     }
 }

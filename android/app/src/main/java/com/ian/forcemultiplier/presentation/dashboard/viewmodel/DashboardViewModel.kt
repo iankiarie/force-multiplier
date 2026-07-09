@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ian.forcemultiplier.data.remote.dto.ActivityDto
 import com.ian.forcemultiplier.data.remote.dto.UserDto
 import com.ian.forcemultiplier.domain.repository.DashboardRepository
+import com.ian.forcemultiplier.domain.repository.LeaderboardRepository
 import com.ian.forcemultiplier.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: DashboardRepository
+    private val repository: DashboardRepository,
+    private val leaderboardRepository: LeaderboardRepository
 ) : ViewModel() {
 
     private val _userState = MutableStateFlow<Resource<UserDto>>(Resource.Loading())
@@ -24,6 +26,10 @@ class DashboardViewModel @Inject constructor(
     private val _activityState = MutableStateFlow<Resource<List<ActivityDto>>>(Resource.Loading())
     val activityState: StateFlow<Resource<List<ActivityDto>>> = _activityState.asStateFlow()
 
+    // The #1 user on the leaderboard — shown in the hero card on the dashboard
+    private val _leaderState = MutableStateFlow<Resource<UserDto?>>(Resource.Loading())
+    val leaderState: StateFlow<Resource<UserDto?>> = _leaderState.asStateFlow()
+
     init {
         loadData()
     }
@@ -31,6 +37,7 @@ class DashboardViewModel @Inject constructor(
     fun loadData() {
         loadCurrentUser()
         loadTeamActivity()
+        loadLeader()
     }
 
     private fun loadCurrentUser() {
@@ -45,6 +52,18 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             repository.getTeamActivity().collect { result ->
                 _activityState.value = result
+            }
+        }
+    }
+
+    private fun loadLeader() {
+        viewModelScope.launch {
+            leaderboardRepository.getLeaderboard("all").collect { result ->
+                _leaderState.value = when (result) {
+                    is Resource.Success -> Resource.Success(result.data?.firstOrNull())
+                    is Resource.Error   -> Resource.Success(null) // non-fatal; hero card handles null
+                    is Resource.Loading -> Resource.Loading()
+                }
             }
         }
     }

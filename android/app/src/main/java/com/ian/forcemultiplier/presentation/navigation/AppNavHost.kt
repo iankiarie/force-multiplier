@@ -17,11 +17,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ian.forcemultiplier.R
@@ -32,9 +34,10 @@ import com.ian.forcemultiplier.presentation.leaderboard.LeaderboardScreen
 import com.ian.forcemultiplier.presentation.profile.ProfileScreen
 import com.ian.forcemultiplier.presentation.vault.NoteDetailScreen
 import com.ian.forcemultiplier.presentation.vault.VaultScreen
+import com.ian.forcemultiplier.presentation.vault.viewmodel.VaultViewModel
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-private val BgDark       = Color(0xFF0B0F14)
+private val BgBlack      = Color(0xFF080808)
 private val SurfaceDark  = Color(0xFF151B23)
 private val BorderDark   = Color(0xFF30363D)
 private val MutedText    = Color(0xFF8B949E)
@@ -45,13 +48,10 @@ data class NavigationItem(val route: String, val label: String, val icon: Int)
 private val navItems = listOf(
     NavigationItem("dashboard",   "Home",    R.drawable.ic_home),
     NavigationItem("bets",        "Bets",    R.drawable.ic_bet),
-    NavigationItem("vault",       "Notes",   R.drawable.ic_note),
+    NavigationItem("vault_graph", "Notes",   R.drawable.ic_note),
     NavigationItem("leaderboard", "Ranks",   R.drawable.ic_trophy),
     NavigationItem("profile",     "Profile", R.drawable.ic_person)
 )
-
-// Routes that hide the bottom bar (immersive full-screen)
-private val immersiveRoutes = setOf("note_detail/{noteId}")
 
 @Composable
 fun AppNavHost(
@@ -63,7 +63,7 @@ fun AppNavHost(
     val currentRoute = navBackStackEntry?.destination?.route
     val showNav = currentRoute != null && !currentRoute.startsWith("note_detail")
 
-    Box(modifier = Modifier.fillMaxSize().background(BgDark)) {
+    Box(modifier = Modifier.fillMaxSize().background(BgBlack)) {
         NavHost(
             navController = navController,
             startDestination = "dashboard",
@@ -72,29 +72,50 @@ fun AppNavHost(
             composable("dashboard")   { DashboardScreen(navController = navController) }
             composable("bets")        { BetsScreen(navController = navController) }
             composable("leaderboard") { LeaderboardScreen(navController = navController) }
-            composable("vault")       { VaultScreen(navController = navController) }
-            composable(
-                route = "note_detail/{noteId}?parentId={parentId}&template={template}",
-                arguments = listOf(
-                    navArgument("noteId")   { type = NavType.StringType },
-                    navArgument("parentId") { type = NavType.StringType; nullable = true; defaultValue = null },
-                    navArgument("template") { type = NavType.StringType; nullable = true; defaultValue = null }
-                )
-            ) { back ->
-                NoteDetailScreen(
-                    navController = navController,
-                    noteId = back.arguments?.getString("noteId"),
-                    parentId = back.arguments?.getString("parentId"),
-                    template = back.arguments?.getString("template")
-                )
+
+            // ── Notes graph: VaultScreen + NoteDetailScreen share ONE VaultViewModel ──
+            // By scoping to "vault_graph", both composables get the same instance.
+            // This means when NoteDetailScreen saves a note and pops back, VaultScreen
+            // already has the updated notes list — no re-fetch timing race.
+            navigation(route = "vault_graph", startDestination = "vault") {
+                composable("vault") { back ->
+                    val graphEntry = remember(back) {
+                        navController.getBackStackEntry("vault_graph")
+                    }
+                    val sharedViewModel: VaultViewModel = hiltViewModel(graphEntry)
+                    VaultScreen(navController = navController, viewModel = sharedViewModel)
+                }
+                composable(
+                    route = "note_detail/{noteId}?parentId={parentId}&template={template}",
+                    arguments = listOf(
+                        navArgument("noteId")   { type = NavType.StringType },
+                        navArgument("parentId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("template") { type = NavType.StringType; nullable = true; defaultValue = null }
+                    )
+                ) { back ->
+                    val graphEntry = remember(back) {
+                        navController.getBackStackEntry("vault_graph")
+                    }
+                    val sharedViewModel: VaultViewModel = hiltViewModel(graphEntry)
+                    NoteDetailScreen(
+                        navController  = navController,
+                        viewModel      = sharedViewModel,
+                        noteId         = back.arguments?.getString("noteId"),
+                        parentId       = back.arguments?.getString("parentId"),
+                        template       = back.arguments?.getString("template")
+                    )
+                }
             }
-            composable("profile") { ProfileScreen(navController = navController, onThemeChange = onThemeChange) }
+
+            composable("profile") {
+                ProfileScreen(navController = navController, onThemeChange = onThemeChange)
+            }
         }
 
         AnimatedVisibility(
             visible = showNav,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+            exit  = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             FMBottomNav(currentRoute = currentRoute, onNavigate = { route ->
@@ -102,7 +123,7 @@ fun AppNavHost(
                     navController.navigate(route) {
                         popUpTo(navController.graph.startDestinationId) { saveState = true }
                         launchSingleTop = true
-                        restoreState = true
+                        restoreState    = true
                     }
                 }
             })
@@ -114,17 +135,21 @@ fun AppNavHost(
 private fun FMBottomNav(currentRoute: String?, onNavigate: (String) -> Unit) {
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth()
-                .shadow(20.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(0.6f), spotColor = Color.Black.copy(0.6f))
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(20.dp, RoundedCornerShape(22.dp),
+                    ambientColor = Color.Black.copy(0.6f), spotColor = Color.Black.copy(0.6f))
                 .clip(RoundedCornerShape(22.dp))
                 .background(SurfaceDark)
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment    = Alignment.CenterVertically
         ) {
             navItems.forEach { item ->
-                val isSelected = currentRoute == item.route ||
-                        (item.route == "vault" && currentRoute?.startsWith("note_detail") == true)
+                val isSelected = when {
+                    item.route == "vault_graph" -> currentRoute == "vault" || currentRoute?.startsWith("note_detail") == true
+                    else                        -> currentRoute == item.route
+                }
                 NavPill(item = item, isSelected = isSelected, onClick = { onNavigate(item.route) })
             }
         }
@@ -133,20 +158,22 @@ private fun FMBottomNav(currentRoute: String?, onNavigate: (String) -> Unit) {
 
 @Composable
 private fun NavPill(item: NavigationItem, isSelected: Boolean, onClick: () -> Unit) {
-    val bgColor by animateColorAsState(
-        if (isSelected) GreenPrimary.copy(0.15f) else Color.Transparent, tween(200), label = ""
-    )
-    val tintColor by animateColorAsState(
-        if (isSelected) GreenPrimary else MutedText, tween(200), label = ""
-    )
+    val bgColor    by animateColorAsState(if (isSelected) GreenPrimary.copy(0.15f) else Color.Transparent, tween(200), label = "")
+    val tintColor  by animateColorAsState(if (isSelected) GreenPrimary else MutedText, tween(200), label = "")
 
     Box(
-        modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(bgColor)
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
             .clickable(onClick = onClick)
             .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        AnimatedContent(targetState = isSelected, transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) }, label = "") { sel ->
+        AnimatedContent(
+            targetState  = isSelected,
+            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+            label = ""
+        ) { sel ->
             if (sel) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     Icon(painterResource(item.icon), item.label, tint = tintColor, modifier = Modifier.size(17.dp))

@@ -1,5 +1,6 @@
 package com.ian.forcemultiplier.presentation.vault
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
@@ -20,6 +22,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -28,14 +31,12 @@ import com.ian.forcemultiplier.R
 import com.ian.forcemultiplier.data.remote.dto.NoteDto
 import com.ian.forcemultiplier.presentation.vault.viewmodel.VaultViewModel
 import com.ian.forcemultiplier.util.Resource
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-private val BgDark       = Color(0xFF0B0F14)
+private val BgDark       = Color(0xFF080808)
 private val SurfaceDark  = Color(0xFF151B23)
 private val Surface2Dark = Color(0xFF1C2128)
 private val BorderDark   = Color(0xFF30363D)
@@ -45,7 +46,6 @@ private val OnSurface    = Color(0xFFE6EDF3)
 
 private enum class SaveStatus { Idle, Saving, Saved, Error }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteDetailScreen(
     navController: NavController,
@@ -54,36 +54,33 @@ fun NoteDetailScreen(
     template: String? = null,
     viewModel: VaultViewModel = hiltViewModel()
 ) {
-    // ─── State ──────────────────────────────────────────────────────────────
-    var title by remember { mutableStateOf("") }
-    var contentState by remember { mutableStateOf(TextFieldValue("")) }
-    var tags by remember { mutableStateOf("") }
-    var newTagInput by remember { mutableStateOf("") }
-    var showTagInput by remember { mutableStateOf(false) }
-
-    var savedId by rememberSaveable { mutableStateOf<String?>(if (noteId != "new" && noteId != null) noteId else null) }
-    var saveStatus by remember { mutableStateOf(SaveStatus.Idle) }
-    var isInitialLoad by remember { mutableStateOf(true) }
+    // ── State ─────────────────────────────────────────────────────────────────
+    var title          by remember { mutableStateOf("") }
+    var contentState   by remember { mutableStateOf(TextFieldValue("")) }
+    var tags           by remember { mutableStateOf("") }
+    var newTagInput    by remember { mutableStateOf("") }
+    var showTagInput   by remember { mutableStateOf(false) }
+    var savedId        by rememberSaveable { mutableStateOf<String?>(if (noteId != "new" && noteId != null) noteId else null) }
+    var saveStatus     by remember { mutableStateOf(SaveStatus.Idle) }
+    var pendingBack    by remember { mutableStateOf(false) }
+    var isInitialLoad  by remember { mutableStateOf(true) }
 
     val currentNoteState by viewModel.currentNoteState.collectAsState()
-    val allNotesState by viewModel.notesState.collectAsState()
+    val allNotesState    by viewModel.notesState.collectAsState()
+    val scope            = rememberCoroutineScope()
+    val scrollState      = rememberScrollState()
 
     val subNotes = remember(allNotesState, savedId) {
-        if (allNotesState is Resource.Success) {
-            allNotesState.data?.filter { it.parentId == savedId } ?: emptyList()
-        } else emptyList()
+        if (allNotesState is Resource.Success) allNotesState.data?.filter { it.parentId == savedId } ?: emptyList()
+        else emptyList()
     }
 
-    val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
-
-    // ─── Load existing note ─────────────────────────────────────────────────
+    // ── Load existing note ────────────────────────────────────────────────────
     LaunchedEffect(noteId) {
         if (noteId != null && noteId != "new") {
             viewModel.getNoteById(noteId)
         } else {
             viewModel.clearCurrentNote()
-            // Pre-fill from template if provided
             if (template != null) {
                 val decoded = try { java.net.URLDecoder.decode(template, "UTF-8") } catch (_: Exception) { template }
                 val parts = decoded.split("|", limit = 2)
@@ -94,7 +91,6 @@ fun NoteDetailScreen(
         }
     }
 
-    // ─── Populate fields from loaded note + watch save results ───────────────
     LaunchedEffect(currentNoteState) {
         val state = currentNoteState
         if (state is Resource.Success && state.data != null) {
@@ -104,7 +100,6 @@ fun NoteDetailScreen(
                 tags = state.data.tags ?: ""
                 isInitialLoad = false
             } else {
-                // This is a save result — update our savedId
                 if (state.data.id != null) savedId = state.data.id
                 saveStatus = SaveStatus.Saved
             }
@@ -113,389 +108,365 @@ fun NoteDetailScreen(
         }
     }
 
-    // ─── Auto-save with debounce ─────────────────────────────────────────────
+    // ── Auto-save ─────────────────────────────────────────────────────────────
     LaunchedEffect(Unit) {
         snapshotFlow { Triple(title, contentState.text, tags) }
             .debounce(1500L)
             .collect { (t, c, tgs) ->
                 if (!isInitialLoad && (t.isNotBlank() || c.isNotBlank())) {
                     saveStatus = SaveStatus.Saving
-                    val dto = NoteDto(
-                        id = savedId,
-                        title = t.ifBlank { "Untitled" },
+                    val dto = NoteDto(id = savedId, title = t.ifBlank { "Untitled" },
                         content = c.takeIf { it.isNotBlank() },
                         tags = tgs.takeIf { it.isNotBlank() },
-                        parentId = parentId,
-                        userId = null
-                    )
-                    if (savedId == null) {
-                        viewModel.createNote(dto)
-                    } else {
-                        viewModel.updateNote(dto)
-                    }
+                        parentId = parentId, userId = null)
+                    if (savedId == null) viewModel.createNote(dto)
+                    else viewModel.updateNote(dto)
                 }
             }
     }
 
-    // ─── Formatting helpers ──────────────────────────────────────────────────
+    // ── Save-then-back ────────────────────────────────────────────────────────
+    LaunchedEffect(pendingBack, saveStatus) {
+        if (pendingBack && saveStatus in listOf(SaveStatus.Saved, SaveStatus.Error, SaveStatus.Idle)) {
+            navController.popBackStack()
+        }
+    }
+
+    fun triggerBack() {
+        if (!isInitialLoad && (title.isNotBlank() || contentState.text.isNotBlank())) {
+            val dto = NoteDto(id = savedId, title = title.ifBlank { "Untitled" },
+                content = contentState.text.takeIf { it.isNotBlank() },
+                tags = tags.takeIf { it.isNotBlank() },
+                parentId = parentId, userId = null)
+            saveStatus = SaveStatus.Saving
+            pendingBack = true
+            if (savedId == null) viewModel.createNote(dto) else viewModel.updateNote(dto)
+        } else {
+            navController.popBackStack()
+        }
+    }
+
+    BackHandler { triggerBack() }
+
+    // ── Formatting helpers ────────────────────────────────────────────────────
     fun wrapSelection(wrapper: String) {
-        val sel = contentState.selection
-        val text = contentState.text
-        val newText: String
-        val newCursor: Int
-        if (sel.collapsed) {
-            newText = text.substring(0, sel.start) + wrapper + wrapper + text.substring(sel.start)
-            newCursor = sel.start + wrapper.length
+        val sel  = contentState.selection; val text = contentState.text
+        val (newText, newCursor) = if (sel.collapsed) {
+            val nt = text.substring(0, sel.start) + wrapper + wrapper + text.substring(sel.start)
+            nt to sel.start + wrapper.length
         } else {
             val selected = text.substring(sel.start, sel.end)
-            newText = text.substring(0, sel.start) + wrapper + selected + wrapper + text.substring(sel.end)
-            newCursor = sel.end + wrapper.length * 2
+            val nt = text.substring(0, sel.start) + wrapper + selected + wrapper + text.substring(sel.end)
+            nt to sel.end + wrapper.length * 2
         }
         contentState = contentState.copy(text = newText, selection = TextRange(newCursor))
     }
 
     fun insertLinePrefix(prefix: String) {
-        val text = contentState.text
-        val cursor = contentState.selection.start
+        val text = contentState.text; val cursor = contentState.selection.start
         val lineStart = text.lastIndexOf('\n', cursor - 1) + 1
         val newText = text.substring(0, lineStart) + prefix + text.substring(lineStart)
-        contentState = contentState.copy(
-            text = newText,
-            selection = TextRange(cursor + prefix.length)
-        )
+        contentState = contentState.copy(text = newText, selection = TextRange(cursor + prefix.length))
     }
 
-    // ─── UI ─────────────────────────────────────────────────────────────────
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgDark)
-    ) {
+    // ── UI ────────────────────────────────────────────────────────────────────
+    Box(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // ── Top bar ────────────────────────────────────────────────
+
+            // ── Top nav bar ──────────────────────────────────────────────────
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .padding(top = 36.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_home), // back arrow
-                        contentDescription = "Back",
-                        tint = MutedText,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.weight(1f))
-
-                // Save status indicator
-                AnimatedVisibility(
-                    visible = saveStatus != SaveStatus.Idle,
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                // Back button — "< All Notes" style
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { triggerBack() }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = when (saveStatus) {
-                            SaveStatus.Saving -> "Saving..."
-                            SaveStatus.Saved  -> "Saved"
-                            SaveStatus.Error  -> "Error saving"
-                            SaveStatus.Idle   -> ""
-                        },
-                        color = when (saveStatus) {
-                            SaveStatus.Saved  -> GreenPrimary
-                            SaveStatus.Error  -> Color(0xFFFF4757)
-                            else              -> MutedText
-                        },
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                    Icon(
+                        painter = painterResource(R.drawable.ic_home),
+                        contentDescription = "Back",
+                        tint = GreenPrimary,
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(Modifier.width(5.dp))
+                    Text("All Notes", color = GreenPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
 
-                // Delete button (only for existing notes)
-                if (savedId != null) {
-                    IconButton(onClick = {
-                        scope.launch {
-                            viewModel.deleteNote(savedId!!)
-                            navController.popBackStack()
-                        }
-                    }) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_visibility_off),
-                            contentDescription = "Delete",
-                            tint = Color(0xFFFF4757).copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
+                Spacer(Modifier.weight(1f))
+
+                // Save status pill
+                AnimatedVisibility(visible = saveStatus != SaveStatus.Idle, enter = fadeIn(), exit = fadeOut()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                when (saveStatus) {
+                                    SaveStatus.Saving -> Color(0xFF1C2128)
+                                    SaveStatus.Saved  -> GreenPrimary.copy(0.12f)
+                                    SaveStatus.Error  -> Color(0xFFFF4757).copy(0.12f)
+                                    else              -> Color.Transparent
+                                }
+                            )
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = when (saveStatus) {
+                                SaveStatus.Saving -> "Saving..."
+                                SaveStatus.Saved  -> "Saved"
+                                SaveStatus.Error  -> "Error saving"
+                                else              -> ""
+                            },
+                            color = when (saveStatus) {
+                                SaveStatus.Saved  -> GreenPrimary
+                                SaveStatus.Error  -> Color(0xFFFF4757)
+                                else              -> MutedText
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                // Delete button
+                if (savedId != null) {
+                    IconButton(
+                        onClick = { scope.let { viewModel.deleteNote(savedId!!); navController.popBackStack() } },
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(Surface2Dark)
+                    ) {
+                        Icon(painterResource(R.drawable.ic_visibility_off), null,
+                            tint = Color(0xFFFF4757).copy(0.7f), modifier = Modifier.size(16.dp))
                     }
                 }
             }
 
-            // ── Scrollable body ────────────────────────────────────────
+            // ── Scrollable body ───────────────────────────────────────────────
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(scrollState)
+                modifier = Modifier.weight(1f).verticalScroll(scrollState)
                     .padding(horizontal = 24.dp)
             ) {
+                Spacer(Modifier.height(8.dp))
+
                 // Title
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
                     textStyle = TextStyle(
                         color = OnSurface,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp,
-                        lineHeight = 36.sp,
-                        letterSpacing = (-0.5).sp
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 26.sp,
+                        lineHeight = 34.sp,
+                        letterSpacing = (-0.8).sp
                     ),
                     cursorBrush = SolidColor(GreenPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     decorationBox = { inner ->
-                        if (title.isEmpty()) {
-                            Text(
-                                "Untitled",
-                                style = TextStyle(
-                                    color = MutedText.copy(alpha = 0.4f),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 28.sp
-                                )
-                            )
-                        }
+                        if (title.isEmpty()) Text("Untitled",
+                            style = TextStyle(color = MutedText.copy(0.35f), fontWeight = FontWeight.ExtraBold, fontSize = 26.sp))
                         inner()
                     }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
 
-                // Tags row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // ── Metadata rows ────────────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceDark)
+                        .border(1.dp, BorderDark, RoundedCornerShape(12.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    val tagList = tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                    tagList.forEach { tag ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(GreenPrimary.copy(alpha = 0.12f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(tag, color = GreenPrimary, fontSize = 11.sp)
+                    // Created by
+                    MetaRow("Created by") {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier.size(20.dp).clip(CircleShape)
+                                    .background(Brush.linearGradient(listOf(GreenPrimary, Color(0xFF17C3B2)))),
+                                contentAlignment = Alignment.Center
+                            ) { Text("U", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Bold) }
+                            Spacer(Modifier.width(6.dp))
+                            Text("You", color = OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    // Add tag
-                    if (showTagInput) {
-                        BasicTextField(
-                            value = newTagInput,
-                            onValueChange = { newTagInput = it },
-                            textStyle = TextStyle(color = OnSurface, fontSize = 12.sp),
-                            cursorBrush = SolidColor(GreenPrimary),
-                            singleLine = true,
-                            modifier = Modifier.width(80.dp),
-                            decorationBox = { inner ->
-                                if (newTagInput.isEmpty()) Text("tag...", color = MutedText, fontSize = 12.sp)
-                                inner()
-                            }
+                    // Last modified
+                    MetaRow("Last Modified") {
+                        Text(
+                            SimpleDateFormat("d MMMM yyyy, HH:mm", Locale.getDefault()).format(Date()),
+                            color = MutedText, fontSize = 13.sp
                         )
-                        TextButton(
-                            onClick = {
-                                if (newTagInput.isNotBlank()) {
-                                    tags = if (tags.isBlank()) newTagInput.trim()
-                                    else "$tags, ${newTagInput.trim()}"
-                                }
-                                newTagInput = ""
-                                showTagInput = false
-                            },
-                            contentPadding = PaddingValues(horizontal = 4.dp),
-                            modifier = Modifier.height(24.dp)
-                        ) { Text("Add", color = GreenPrimary, fontSize = 12.sp) }
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(SurfaceDark)
-                                .clickable { showTagInput = true }
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                    }
+                    // Tags
+                    MetaRow("Tags") {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("+ tag", color = MutedText, fontSize = 11.sp)
+                            val tagList = tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                            tagList.forEach { tag ->
+                                Box(
+                                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                        .background(GreenPrimary.copy(0.1f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) { Text(tag, color = GreenPrimary, fontSize = 11.sp) }
+                            }
+                            if (showTagInput) {
+                                BasicTextField(
+                                    value = newTagInput,
+                                    onValueChange = { newTagInput = it },
+                                    textStyle = TextStyle(color = OnSurface, fontSize = 12.sp),
+                                    cursorBrush = SolidColor(GreenPrimary), singleLine = true,
+                                    modifier = Modifier.width(70.dp),
+                                    decorationBox = { inner ->
+                                        if (newTagInput.isEmpty()) Text("tag...", color = MutedText, fontSize = 12.sp)
+                                        inner()
+                                    }
+                                )
+                                TextButton(
+                                    onClick = {
+                                        if (newTagInput.isNotBlank()) tags = if (tags.isBlank()) newTagInput.trim() else "$tags, ${newTagInput.trim()}"
+                                        newTagInput = ""; showTagInput = false
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp), modifier = Modifier.height(24.dp)
+                                ) { Text("Add", color = GreenPrimary, fontSize = 12.sp) }
+                            } else {
+                                Box(
+                                    modifier = Modifier.size(22.dp).clip(CircleShape)
+                                        .background(Surface2Dark).border(1.dp, BorderDark, CircleShape)
+                                        .clickable { showTagInput = true },
+                                    contentAlignment = Alignment.Center
+                                ) { Text("+", color = MutedText, fontSize = 14.sp) }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(20.dp))
 
-                // Metadata row
-                Text(
-                    text = buildString {
-                        append(SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date()))
-                        if (saveStatus == SaveStatus.Saved) append("  ·  Edited just now")
-                    },
-                    color = MutedText,
-                    fontSize = 12.sp
-                )
-
-                // Divider
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 16.dp),
-                    color = BorderDark
-                )
-
-                // Content editor
+                // ── Content editor ─────────────────────────────────────────────
                 BasicTextField(
                     value = contentState,
                     onValueChange = { contentState = it },
-                    textStyle = TextStyle(
-                        color = OnSurface,
-                        fontSize = 15.sp,
-                        lineHeight = 24.sp
-                    ),
+                    textStyle = TextStyle(color = OnSurface, fontSize = 15.sp, lineHeight = 25.sp),
                     cursorBrush = SolidColor(GreenPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = 240.dp),
+                    modifier = Modifier.fillMaxWidth().defaultMinSize(minHeight = 280.dp),
                     decorationBox = { inner ->
-                        if (contentState.text.isEmpty()) {
-                            Text(
-                                "Start writing...",
-                                style = TextStyle(
-                                    color = MutedText.copy(alpha = 0.4f),
-                                    fontSize = 15.sp,
-                                    lineHeight = 24.sp
-                                )
-                            )
-                        }
+                        if (contentState.text.isEmpty()) Text("Start writing...",
+                            style = TextStyle(color = MutedText.copy(0.4f), fontSize = 15.sp, lineHeight = 25.sp))
                         inner()
                     }
                 )
 
-                // Sub-pages section
+                // ── Sub-pages ──────────────────────────────────────────────────
                 if (subNotes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(40.dp))
+                    Spacer(Modifier.height(36.dp))
                     HorizontalDivider(color = BorderDark)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Sub-pages",
-                        color = MutedText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.8.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(14.dp))
+                    Text("Sub-pages", color = MutedText, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp)
+                    Spacer(Modifier.height(8.dp))
                     subNotes.forEach { sub ->
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                                 .clickable { navController.navigate("note_detail/${sub.id}") }
                                 .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_note),
-                                contentDescription = null,
-                                tint = MutedText,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                sub.title.ifBlank { "Untitled" },
-                                color = OnSurface,
-                                fontSize = 14.sp
-                            )
+                            Icon(painterResource(R.drawable.ic_note), null, tint = MutedText, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(sub.title.ifBlank { "Untitled" }, color = OnSurface, fontSize = 14.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
 
                 // Add sub-page
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
                         .clickable { navController.navigate("note_detail/new?parentId=$savedId") }
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_add),
-                        contentDescription = null,
-                        tint = MutedText,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(painterResource(R.drawable.ic_add), null, tint = MutedText, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(10.dp))
                     Text("Add sub-page", color = MutedText, fontSize = 14.sp)
                 }
 
-                Spacer(modifier = Modifier.height(80.dp))
+                Spacer(Modifier.height(80.dp))
             }
 
-            // ── Format toolbar (pinned at bottom) ─────────────────────
+            // ── Format toolbar ──────────────────────────────────────────────
             Column {
                 HorizontalDivider(color = BorderDark)
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(SurfaceDark)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier.fillMaxWidth().background(SurfaceDark)
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FormatButton("B", fontWeight = FontWeight.Bold)    { wrapSelection("**") }
-                    FormatButton("I", fontStyle = FontStyle.Italic)    { wrapSelection("_") }
-                    FormatButton("H1")  { insertLinePrefix("# ") }
-                    FormatButton("H2")  { insertLinePrefix("## ") }
-                    FormatDivider()
-                    FormatButton(">")   { insertLinePrefix("> ") }
-                    FormatButton("-")   { insertLinePrefix("- ") }
-                    FormatButton("1.")  { insertLinePrefix("1. ") }
-                    FormatDivider()
-                    FormatButton("</>") { wrapSelection("`") }
-                    FormatButton("---") { contentState = contentState.copy(
-                        text = contentState.text.substring(0, contentState.selection.start) +
-                                "\n---\n" + contentState.text.substring(contentState.selection.start),
-                        selection = TextRange(contentState.selection.start + 5)
-                    )}
+                    FmFormatBtn("B", fontWeight = FontWeight.Bold)   { wrapSelection("**") }
+                    FmFormatBtn("I", fontStyle = FontStyle.Italic)   { wrapSelection("_") }
+                    FmToolDivider()
+                    FmFormatBtn("H1") { insertLinePrefix("# ") }
+                    FmFormatBtn("H2") { insertLinePrefix("## ") }
+                    FmFormatBtn("H3") { insertLinePrefix("### ") }
+                    FmToolDivider()
+                    FmFormatBtn(">")  { insertLinePrefix("> ") }
+                    FmFormatBtn("•")  { insertLinePrefix("- ") }
+                    FmFormatBtn("1.") { insertLinePrefix("1. ") }
+                    FmFormatBtn("☐")  { insertLinePrefix("- [ ] ") }
+                    FmToolDivider()
+                    FmFormatBtn("</>") { wrapSelection("`") }
+                    FmFormatBtn("—") {
+                        contentState = contentState.copy(
+                            text = contentState.text.substring(0, contentState.selection.start) +
+                                    "\n---\n" + contentState.text.substring(contentState.selection.start),
+                            selection = TextRange(contentState.selection.start + 5)
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+// ─── Metadata row layout ────────────────────────────────────────────────────
 @Composable
-private fun FormatButton(
+private fun MetaRow(label: String, value: @Composable () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = MutedText, fontSize = 12.sp, modifier = Modifier.width(100.dp))
+        value()
+    }
+}
+
+// ─── Format toolbar buttons ─────────────────────────────────────────────────
+@Composable
+private fun FmFormatBtn(
     label: String,
     fontWeight: FontWeight = FontWeight.Normal,
     fontStyle: FontStyle = FontStyle.Normal,
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
+        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            color = MutedText,
-            fontSize = if (label.length > 2) 10.sp else 13.sp,
-            fontWeight = fontWeight,
-            fontStyle = fontStyle
-        )
+        Text(label, color = MutedText, fontSize = if (label.length > 2) 10.sp else 13.sp,
+            fontWeight = fontWeight, fontStyle = fontStyle)
     }
 }
 
 @Composable
-private fun FormatDivider() {
-    Box(
-        modifier = Modifier
-            .height(20.dp)
-            .width(1.dp)
-            .background(BorderDark)
-    )
+private fun FmToolDivider() {
+    Box(modifier = Modifier.height(18.dp).width(1.dp).background(BorderDark))
 }
