@@ -2,6 +2,7 @@ package com.ian.forcemultiplier.presentation.login.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -16,7 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -34,11 +34,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.ian.forcemultiplier.MainActivity
 import com.ian.forcemultiplier.R
-import com.ian.forcemultiplier.core.session.SessionManager
 import com.ian.forcemultiplier.core.theme.ForceMultiplierTheme
+import com.ian.forcemultiplier.data.repository.NoteRepositoryImpl
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.handleDeeplinks
+import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -46,27 +48,68 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class LoginActivity : ComponentActivity() {
 
-    @Inject lateinit var sessionManager: SessionManager
     @Inject lateinit var supabaseClient: SupabaseClient
+    @Inject lateinit var noteRepositoryImpl: NoteRepositoryImpl
+
+    private var hasOpenedMainActivity = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleAuthCallback(intent)
         if (supabaseClient.auth.currentUserOrNull() != null) {
-            startActivity(Intent(this, MainActivity::class.java))
-            finish()
+            openMainActivity()
             return
         }
         setContent {
             ForceMultiplierTheme {
                 LoginScreen(
                     supabaseClient = supabaseClient,
+                    onAuthenticated = { userId ->
+                        lifecycleScope.launch {
+                            noteRepositoryImpl.migrateGuestNotesToUser(userId).collect { }
+                        }
+                    },
                     onLoginSuccess = {
-                        startActivity(Intent(this, MainActivity::class.java))
-                        finish()
+                        openMainActivity()
                     }
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleAuthCallback(intent)
+    }
+
+    private fun handleAuthCallback(intent: Intent?) {
+        if (intent?.data == null) return
+        supabaseClient.handleDeeplinks(
+            intent = intent,
+            onSessionSuccess = { session ->
+                lifecycleScope.launch {
+                    session.user?.id?.let { userId ->
+                        noteRepositoryImpl.migrateGuestNotesToUser(userId).collect { }
+                    }
+                    openMainActivity()
+                }
+            },
+            onError = { throwable ->
+                Toast.makeText(
+                    this,
+                    throwable.localizedMessage ?: "Google login failed.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        )
+    }
+
+    private fun openMainActivity() {
+        if (hasOpenedMainActivity) return
+        hasOpenedMainActivity = true
+        startActivity(Intent(this, MainActivity::class.java))
+        finish()
     }
 }
 
@@ -82,6 +125,7 @@ private val White        = Color(0xFFFFFFFF)
 @Composable
 fun LoginScreen(
     supabaseClient: SupabaseClient,
+    onAuthenticated: (String) -> Unit,
     onLoginSuccess: () -> Unit
 ) {
     var email        by remember { mutableStateOf("") }
@@ -314,6 +358,7 @@ fun LoginScreen(
                                 infoMessage = "Check your email to confirm your account."
                             } else {
                                 supabaseClient.auth.signInWith(Email) { this.email = email.trim(); this.password = password }
+                                supabaseClient.auth.currentUserOrNull()?.id?.let(onAuthenticated)
                                 onLoginSuccess()
                             }
                         } catch (e: Exception) {
@@ -349,11 +394,26 @@ fun LoginScreen(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // Google
                 OutlinedButton(
-                    onClick = {},
+                    onClick = {
+                        isLoading = true
+                        error = null
+                        infoMessage = "Continue in your browser to finish Google sign in."
+                        scope.launch {
+                            try {
+                                supabaseClient.auth.signInWith(Google)
+                            } catch (e: Exception) {
+                                error = e.localizedMessage ?: "Google sign in failed."
+                                infoMessage = null
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
                     modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(26.dp),
                     border = BorderStroke(1.dp, Color(0xFF282828)),
-                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF111111), contentColor = White)
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF111111), contentColor = White),
+                    enabled = !isLoading
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         Icon(painterResource(R.drawable.ic_google), "Google", Modifier.size(17.dp), tint = Color.Unspecified)

@@ -28,6 +28,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.ian.forcemultiplier.R
 import com.ian.forcemultiplier.core.theme.AppTheme
+import com.ian.forcemultiplier.core.theme.FMColors
 import com.ian.forcemultiplier.presentation.bets.BetsScreen
 import com.ian.forcemultiplier.presentation.dashboard.DashboardScreen
 import com.ian.forcemultiplier.presentation.leaderboard.LeaderboardScreen
@@ -37,11 +38,10 @@ import com.ian.forcemultiplier.presentation.vault.VaultScreen
 import com.ian.forcemultiplier.presentation.vault.viewmodel.VaultViewModel
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-private val BgBlack      = Color(0xFF080808)
-private val SurfaceDark  = Color(0xFF151B23)
-private val BorderDark   = Color(0xFF30363D)
-private val MutedText    = Color(0xFF8B949E)
-private val GreenPrimary = Color(0xFF2ED573)
+private val BgBlack      = FMColors.DarkBg
+private val SurfaceDark  = FMColors.DarkSurface
+private val MutedText    = FMColors.DarkMuted
+private val GreenPrimary = FMColors.Primary
 
 data class NavigationItem(val route: String, val label: String, val icon: Int)
 
@@ -86,11 +86,12 @@ fun AppNavHost(
                     VaultScreen(navController = navController, viewModel = sharedViewModel)
                 }
                 composable(
-                    route = "note_detail/{noteId}?parentId={parentId}&template={template}",
+                    route = "note_detail/{noteId}?parentId={parentId}&template={template}&folderId={folderId}",
                     arguments = listOf(
                         navArgument("noteId")   { type = NavType.StringType },
                         navArgument("parentId") { type = NavType.StringType; nullable = true; defaultValue = null },
-                        navArgument("template") { type = NavType.StringType; nullable = true; defaultValue = null }
+                        navArgument("template") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("folderId") { type = NavType.StringType; nullable = true; defaultValue = null }
                     )
                 ) { back ->
                     val graphEntry = remember(back) {
@@ -98,11 +99,12 @@ fun AppNavHost(
                     }
                     val sharedViewModel: VaultViewModel = hiltViewModel(graphEntry)
                     NoteDetailScreen(
-                        navController  = navController,
-                        viewModel      = sharedViewModel,
-                        noteId         = back.arguments?.getString("noteId"),
-                        parentId       = back.arguments?.getString("parentId"),
-                        template       = back.arguments?.getString("template")
+                        navController = navController,
+                        viewModel = sharedViewModel,
+                        noteId = back.arguments?.getString("noteId"),
+                        parentId = back.arguments?.getString("parentId"),
+                        template = back.arguments?.getString("template"),
+                        initialFolderId = back.arguments?.getString("folderId")
                     )
                 }
             }

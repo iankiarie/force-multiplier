@@ -15,12 +15,12 @@ object FMColors {
     val AccentDim      = Color(0xFFD4A017)
 
     // ── Backgrounds (Dark) ───────────────────────────────────
-    val DarkBg         = Color(0xFF0B0F14)
-    val DarkSurface    = Color(0xFF151B23)
-    val DarkSurface2   = Color(0xFF1C2128)
-    val DarkOutline    = Color(0xFF30363D)
+    val DarkBg         = Color(0xFF080808)
+    val DarkSurface    = Color(0xFF111111)
+    val DarkSurface2   = Color(0xFF171717)
+    val DarkOutline    = Color(0xFF262626)
     val DarkOnSurface  = Color(0xFFFFFFFF)
-    val DarkMuted      = Color(0xFF8B949E)
+    val DarkMuted      = Color(0xFF6B6B6B)
 
     // ── Backgrounds (Light) ──────────────────────────────────
     val LightBg        = Color(0xFFF6F8FA)

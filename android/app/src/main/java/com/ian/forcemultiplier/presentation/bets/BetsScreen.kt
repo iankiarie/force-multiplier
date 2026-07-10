@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ian.forcemultiplier.R
+import com.ian.forcemultiplier.core.theme.FMColors
 import com.ian.forcemultiplier.data.remote.dto.BetDto
 import com.ian.forcemultiplier.data.remote.dto.PredictionDto
 import com.ian.forcemultiplier.presentation.bets.viewmodel.BetsViewModel
@@ -32,16 +33,16 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-private val BgDark       = Color(0xFF0B0F14)
-private val SurfaceDark  = Color(0xFF151B23)
-private val Surface2Dark = Color(0xFF1C2128)
-private val BorderDark   = Color(0xFF30363D)
-private val MutedText    = Color(0xFF8B949E)
-private val GreenPrimary = Color(0xFF2ED573)
-private val OnSurface    = Color(0xFFE6EDF3)
-private val AccentBlue   = Color(0xFF3DABF5)
-private val AccentPurple = Color(0xFF9C59FF)
-private val ErrorRed     = Color(0xFFFF4757)
+private val BgDark       = FMColors.DarkBg
+private val SurfaceDark  = FMColors.DarkSurface
+private val Surface2Dark = FMColors.DarkSurface2
+private val BorderDark   = FMColors.DarkOutline
+private val MutedText    = FMColors.DarkMuted
+private val GreenPrimary = FMColors.Primary
+private val OnSurface    = FMColors.DarkOnSurface
+private val AccentBlue   = FMColors.Info
+private val AccentPurple = FMColors.BadgeEpic
+private val ErrorRed     = FMColors.Error
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

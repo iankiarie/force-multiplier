@@ -34,4 +34,7 @@ object DatabaseModule {
 
     @Provides
     fun provideNoteDao(database: AppDatabase): NoteDao = database.noteDao()
+
+    @Provides
+    fun provideFolderDao(database: AppDatabase): FolderDao = database.folderDao()
 }

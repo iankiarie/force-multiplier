@@ -7,7 +7,12 @@ import androidx.room.ColumnInfo
 
 // FK removed: Supabase manages auth separately; local userId may not exist in UserEntity
 @Entity(
-    indices = [Index(value = ["user_id"]), Index(value = ["created_at"])]
+    indices = [
+        Index(value = ["user_id"]),
+        Index(value = ["folder_id"]),
+        Index(value = ["user_id", "folder_id"]),
+        Index(value = ["created_at"])
+    ]
 )
 data class NoteEntity(
     @PrimaryKey
@@ -28,6 +33,8 @@ data class NoteEntity(
     val coverUrl: String? = null,
     @ColumnInfo(name = "is_bookmarked")
     val isBookmarked: Boolean = false,
+    @ColumnInfo(name = "folder_id")
+    val folderId: String? = null,
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at")

@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.FlowPreview::class)
+
 package com.ian.forcemultiplier.presentation.vault
 
 import androidx.activity.compose.BackHandler
@@ -28,30 +30,41 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ian.forcemultiplier.R
+import com.ian.forcemultiplier.core.theme.FMColors
 import com.ian.forcemultiplier.data.remote.dto.NoteDto
 import com.ian.forcemultiplier.presentation.vault.viewmodel.VaultViewModel
 import com.ian.forcemultiplier.util.Resource
 import kotlinx.coroutines.flow.debounce
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.time.Duration.Companion.milliseconds
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-private val BgDark       = Color(0xFF080808)
-private val SurfaceDark  = Color(0xFF151B23)
-private val Surface2Dark = Color(0xFF1C2128)
-private val BorderDark   = Color(0xFF30363D)
-private val MutedText    = Color(0xFF8B949E)
-private val GreenPrimary = Color(0xFF2ED573)
-private val OnSurface    = Color(0xFFE6EDF3)
+private val BgDark       = FMColors.DarkBg
+private val SurfaceDark  = FMColors.DarkSurface
+private val Surface2Dark = FMColors.DarkSurface2
+private val BorderDark   = FMColors.DarkOutline
+private val MutedText    = FMColors.DarkMuted
+private val GreenPrimary = FMColors.Primary
+private val OnSurface    = FMColors.DarkOnSurface
 
 private enum class SaveStatus { Idle, Saving, Saved, Error }
 
+private data class NoteDraftSnapshot(
+    val title: String,
+    val content: String,
+    val tags: String,
+    val folderId: String?
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteDetailScreen(
     navController: NavController,
     noteId: String? = null,
     parentId: String? = null,
     template: String? = null,
+    initialFolderId: String? = null,
     viewModel: VaultViewModel = hiltViewModel()
 ) {
     // ── State ─────────────────────────────────────────────────────────────────
@@ -60,6 +73,8 @@ fun NoteDetailScreen(
     var tags           by remember { mutableStateOf("") }
     var newTagInput    by remember { mutableStateOf("") }
     var showTagInput   by remember { mutableStateOf(false) }
+    var selectedFolderId by remember { mutableStateOf<String?>(null) }
+    var folderMenuExpanded by remember { mutableStateOf(false) }
     var savedId        by rememberSaveable { mutableStateOf<String?>(if (noteId != "new" && noteId != null) noteId else null) }
     var saveStatus     by remember { mutableStateOf(SaveStatus.Idle) }
     var pendingBack    by remember { mutableStateOf(false) }
@@ -67,8 +82,39 @@ fun NoteDetailScreen(
 
     val currentNoteState by viewModel.currentNoteState.collectAsState()
     val allNotesState    by viewModel.notesState.collectAsState()
+    val foldersState     by viewModel.foldersState.collectAsState()
+    val activeFolderFilter by viewModel.selectedFolder.collectAsState()
     val scope            = rememberCoroutineScope()
     val scrollState      = rememberScrollState()
+
+    val folders = (foldersState as? Resource.Success)?.data.orEmpty()
+    val selectedFolder = folders.firstOrNull { it.id == selectedFolderId }
+    val shouldSyncVaultFolderFilter = activeFolderFilter != null
+
+    fun syncVaultFolderFilter(folderId: String?) {
+        if (!shouldSyncVaultFolderFilter) return
+        viewModel.selectFolder(folders.firstOrNull { it.id == folderId })
+    }
+
+    fun buildNewNoteRoute(parentNoteId: String?): String {
+        val query = buildList {
+            parentNoteId?.let { add("parentId=$it") }
+            selectedFolderId?.let { add("folderId=$it") }
+        }
+        return buildString {
+            append("note_detail/new")
+            if (query.isNotEmpty()) {
+                append("?")
+                append(query.joinToString("&"))
+            }
+        }
+    }
+
+    LaunchedEffect(noteId, initialFolderId, activeFolderFilter?.id) {
+        if ((noteId == null || noteId == "new") && selectedFolderId == null) {
+            selectedFolderId = initialFolderId ?: activeFolderFilter?.id
+        }
+    }
 
     val subNotes = remember(allNotesState, savedId) {
         if (allNotesState is Resource.Success) allNotesState.data?.filter { it.parentId == savedId } ?: emptyList()
@@ -98,9 +144,11 @@ fun NoteDetailScreen(
                 title = state.data.title
                 contentState = TextFieldValue(state.data.content ?: "")
                 tags = state.data.tags ?: ""
+                selectedFolderId = state.data.folderId
                 isInitialLoad = false
             } else {
                 if (state.data.id != null) savedId = state.data.id
+                selectedFolderId = state.data.folderId ?: selectedFolderId
                 saveStatus = SaveStatus.Saved
             }
         } else if (state is Resource.Error && !isInitialLoad) {
@@ -110,15 +158,22 @@ fun NoteDetailScreen(
 
     // ── Auto-save ─────────────────────────────────────────────────────────────
     LaunchedEffect(Unit) {
-        snapshotFlow { Triple(title, contentState.text, tags) }
-            .debounce(1500L)
-            .collect { (t, c, tgs) ->
-                if (!isInitialLoad && (t.isNotBlank() || c.isNotBlank())) {
+        snapshotFlow {
+            NoteDraftSnapshot(
+                title = title,
+                content = contentState.text,
+                tags = tags,
+                folderId = selectedFolderId
+            )
+        }
+            .debounce(1500.milliseconds)
+            .collect { draft ->
+                if (!isInitialLoad && (savedId != null || draft.title.isNotBlank() || draft.content.isNotBlank())) {
                     saveStatus = SaveStatus.Saving
-                    val dto = NoteDto(id = savedId, title = t.ifBlank { "Untitled" },
-                        content = c.takeIf { it.isNotBlank() },
-                        tags = tgs.takeIf { it.isNotBlank() },
-                        parentId = parentId, userId = null)
+                    val dto = NoteDto(id = savedId, title = draft.title.ifBlank { "Untitled" },
+                        content = draft.content.takeIf { it.isNotBlank() },
+                        tags = draft.tags.takeIf { it.isNotBlank() },
+                        parentId = parentId, folderId = draft.folderId, userId = null)
                     if (savedId == null) viewModel.createNote(dto)
                     else viewModel.updateNote(dto)
                 }
@@ -133,11 +188,11 @@ fun NoteDetailScreen(
     }
 
     fun triggerBack() {
-        if (!isInitialLoad && (title.isNotBlank() || contentState.text.isNotBlank())) {
+        if (!isInitialLoad && (savedId != null || title.isNotBlank() || contentState.text.isNotBlank())) {
             val dto = NoteDto(id = savedId, title = title.ifBlank { "Untitled" },
                 content = contentState.text.takeIf { it.isNotBlank() },
                 tags = tags.takeIf { it.isNotBlank() },
-                parentId = parentId, userId = null)
+                parentId = parentId, folderId = selectedFolderId, userId = null)
             saveStatus = SaveStatus.Saving
             pendingBack = true
             if (savedId == null) viewModel.createNote(dto) else viewModel.updateNote(dto)
@@ -305,6 +360,55 @@ fun NoteDetailScreen(
                             color = MutedText, fontSize = 13.sp
                         )
                     }
+                    // Folder
+                    MetaRow("Folder") {
+                        ExposedDropdownMenuBox(
+                            expanded = folderMenuExpanded,
+                            onExpandedChange = { folderMenuExpanded = !folderMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedFolder?.name ?: if (folders.isEmpty()) "No folders" else "Choose folder",
+                                onValueChange = {},
+                                readOnly = true,
+                                singleLine = true,
+                                modifier = Modifier.menuAnchor(type = MenuAnchorType.PrimaryNotEditable).widthIn(min = 170.dp),
+                                textStyle = TextStyle(color = OnSurface, fontSize = 13.sp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = GreenPrimary,
+                                    unfocusedBorderColor = BorderDark,
+                                    focusedTextColor = OnSurface,
+                                    unfocusedTextColor = OnSurface
+                                )
+                            )
+                            ExposedDropdownMenu(
+                                expanded = folderMenuExpanded,
+                                onDismissRequest = { folderMenuExpanded = false },
+                                containerColor = SurfaceDark
+                            ) {
+                                folders.forEach { folder ->
+                                    DropdownMenuItem(
+                                        text = { Text(folder.name, color = OnSurface) },
+                                        onClick = {
+                                            selectedFolderId = folder.id
+                                            syncVaultFolderFilter(folder.id)
+                                            folderMenuExpanded = false
+                                        }
+                                    )
+                                }
+                                if (folders.isNotEmpty()) {
+                                    HorizontalDivider(color = BorderDark)
+                                    DropdownMenuItem(
+                                        text = { Text("Clear folder", color = MutedText) },
+                                        onClick = {
+                                            selectedFolderId = null
+                                            syncVaultFolderFilter(null)
+                                            folderMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // Tags
                     MetaRow("Tags") {
                         Row(
@@ -392,7 +496,7 @@ fun NoteDetailScreen(
                 Spacer(Modifier.height(20.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                        .clickable { navController.navigate("note_detail/new?parentId=$savedId") }
+                        .clickable { navController.navigate(buildNewNoteRoute(savedId)) }
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

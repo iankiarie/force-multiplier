@@ -14,6 +14,7 @@ data class NoteDto(
     @SerialName("icon") val icon: String? = null,
     @SerialName("cover_url") val coverUrl: String? = null,
     @SerialName("is_bookmarked") val isBookmarked: Boolean = false,
+    @SerialName("folder_id") val folderId: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("user_id") val userId: String?

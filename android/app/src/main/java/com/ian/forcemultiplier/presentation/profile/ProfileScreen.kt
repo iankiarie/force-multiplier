@@ -20,6 +20,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ian.forcemultiplier.R
 import com.ian.forcemultiplier.core.theme.AppTheme
+import com.ian.forcemultiplier.core.theme.FMColors
 import com.ian.forcemultiplier.presentation.login.ui.LoginActivity
 import com.ian.forcemultiplier.presentation.profile.viewmodel.ProfileViewModel
 import com.ian.forcemultiplier.util.Resource
@@ -28,14 +29,14 @@ import java.util.Calendar
 import java.util.Locale
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
-private val BgDark       = Color(0xFF080808)
-private val SurfaceDark  = Color(0xFF151B23)
-private val Surface2Dark = Color(0xFF1C2128)
-private val BorderDark   = Color(0xFF30363D)
-private val MutedText    = Color(0xFF8B949E)
-private val GreenPrimary = Color(0xFF2ED573)
-private val OnSurface    = Color(0xFFE6EDF3)
-private val ErrorRed     = Color(0xFFFF4757)
+private val BgDark       = FMColors.DarkBg
+private val SurfaceDark  = FMColors.DarkSurface
+private val Surface2Dark = FMColors.DarkSurface2
+private val BorderDark   = FMColors.DarkOutline
+private val MutedText    = FMColors.DarkMuted
+private val GreenPrimary = FMColors.Primary
+private val OnSurface    = FMColors.DarkOnSurface
+private val ErrorRed     = FMColors.Error
 
 @Composable
 fun ProfileScreen(
