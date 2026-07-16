@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -137,6 +138,7 @@ fun LoginScreen(
     var infoMessage  by remember { mutableStateOf<String?>(null) }
     val focusManager = LocalFocusManager.current
     val scope        = rememberCoroutineScope()
+    val context      = LocalContext.current
 
     Box(modifier = Modifier.fillMaxSize().background(BgBlack)) {
 
@@ -395,15 +397,18 @@ fun LoginScreen(
                 // Google
                 OutlinedButton(
                     onClick = {
-                        isLoading = true
-                        error = null
-                        infoMessage = "Continue in your browser to finish Google sign in."
                         scope.launch {
+                            isLoading = true
+                            error = null
                             try {
-                                supabaseClient.auth.signInWith(Google)
+                                supabaseClient.auth.signInWith(Google) {
+                                    nativeFlow = true
+                                    serverClientId = context.getString(R.string.google_web_client_id)
+                                }
+                                supabaseClient.auth.currentUserOrNull()?.id?.let(onAuthenticated)
+                                onLoginSuccess()
                             } catch (e: Exception) {
                                 error = e.localizedMessage ?: "Google sign in failed."
-                                infoMessage = null
                             } finally {
                                 isLoading = false
                             }

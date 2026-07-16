@@ -65,6 +65,7 @@ dependencies {
     implementation "io.github.jan-tennert.supabase:postgrest-kt"
     implementation "io.github.jan-tennert.supabase:auth-kt"
     implementation "io.github.jan-tennert.supabase:storage-kt"
+    implementation "io.github.jan-tennert.supabase:realtime-kt"
     implementation "io.ktor:ktor-client-android:3.0.1"
 
     // Hilt
@@ -79,6 +80,11 @@ dependencies {
 
     // DataStore (theme preferences)
     implementation 'androidx.datastore:datastore-preferences:1.1.1'
+
+    // Credential Manager (native Google Sign-In)
+    implementation "androidx.credentials:credentials:1.3.0"
+    implementation "androidx.credentials:credentials-play-services-auth:1.3.0"
+    implementation "com.google.android.libraries.identity.googleid:googleid:1.1.1"
 
     // Retrofit & GSON
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'

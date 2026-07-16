@@ -4,6 +4,7 @@ package com.ian.forcemultiplier.presentation.vault
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -32,7 +33,7 @@ import androidx.navigation.NavController
 import com.ian.forcemultiplier.R
 import com.ian.forcemultiplier.core.theme.FMColors
 import com.ian.forcemultiplier.data.remote.dto.NoteDto
-import com.ian.forcemultiplier.presentation.vault.viewmodel.VaultViewModel
+import com.ian.forcemultiplier.presentation.vault.viewmodel.CollaborationViewModel
 import com.ian.forcemultiplier.util.Resource
 import kotlinx.coroutines.flow.debounce
 import java.text.SimpleDateFormat
@@ -65,7 +66,8 @@ fun NoteDetailScreen(
     parentId: String? = null,
     template: String? = null,
     initialFolderId: String? = null,
-    viewModel: VaultViewModel = hiltViewModel()
+    viewModel: VaultViewModel = hiltViewModel(),
+    collaborationViewModel: CollaborationViewModel = hiltViewModel()
 ) {
     // ── State ─────────────────────────────────────────────────────────────────
     var title          by remember { mutableStateOf("") }
@@ -79,6 +81,12 @@ fun NoteDetailScreen(
     var saveStatus     by remember { mutableStateOf(SaveStatus.Idle) }
     var pendingBack    by remember { mutableStateOf(false) }
     var isInitialLoad  by remember { mutableStateOf(true) }
+    var showProperties  by remember { mutableStateOf(true) }
+
+    // Collaboration state
+    var showCollaborationSheet by remember { mutableStateOf(false) }
+    val myRole by collaborationViewModel.myRole.collectAsState()
+    val currentUserId = remember { "" }
 
     val currentNoteState by viewModel.currentNoteState.collectAsState()
     val allNotesState    by viewModel.notesState.collectAsState()
@@ -125,6 +133,7 @@ fun NoteDetailScreen(
     LaunchedEffect(noteId) {
         if (noteId != null && noteId != "new") {
             viewModel.getNoteById(noteId)
+            collaborationViewModel.loadForNote(noteId)   // load collaborators + subscribe to comments
         } else {
             viewModel.clearCurrentNote()
             if (template != null) {
@@ -225,6 +234,16 @@ fun NoteDetailScreen(
     }
 
     // ── UI ────────────────────────────────────────────────────────────────────
+    // Collaboration sheet
+    if (showCollaborationSheet && savedId != null) {
+        CollaborationSheet(
+            noteId     = savedId!!,
+            isOwner    = myRole == null || myRole == com.ian.forcemultiplier.domain.model.CollaborationRole.OWNER,
+            viewModel  = collaborationViewModel,
+            onDismiss  = { showCollaborationSheet = false }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(BgDark)) {
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -290,6 +309,23 @@ fun NoteDetailScreen(
 
                 Spacer(Modifier.width(8.dp))
 
+                // Share button
+                if (savedId != null) {
+                    IconButton(
+                        onClick = { showCollaborationSheet = true },
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(Surface2Dark)
+                            .border(1.dp, BorderDark, CircleShape)
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_note),
+                            contentDescription = "Share",
+                            tint = MutedText,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+
                 // Delete button
                 if (savedId != null) {
                     IconButton(
@@ -329,9 +365,31 @@ fun NoteDetailScreen(
                     }
                 )
 
-                Spacer(Modifier.height(14.dp))
+                // Properties toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showProperties = !showProperties }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "PROPERTIES",
+                        color = MutedText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.8.sp
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (showProperties) "-" else "+", color = MutedText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
 
-                // ── Metadata rows ────────────────────────────────────────────
+                AnimatedVisibility(
+                    visible = showProperties,
+                    enter = expandVertically(animationSpec = tween(200)) + fadeIn(tween(200)),
+                    exit = shrinkVertically(animationSpec = tween(150)) + fadeOut(tween(150))
+                ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -453,6 +511,7 @@ fun NoteDetailScreen(
                         }
                     }
                 }
+                }
 
                 Spacer(Modifier.height(20.dp))
 
@@ -469,6 +528,17 @@ fun NoteDetailScreen(
                         inner()
                     }
                 )
+
+                // Comments
+                if (savedId != null) {
+                    HorizontalDivider(color = BorderDark)
+                    CommentsSection(
+                        noteId        = savedId!!,
+                        currentUserId = currentUserId,
+                        myRole        = myRole,
+                        viewModel     = collaborationViewModel
+                    )
+                }
 
                 // ── Sub-pages ──────────────────────────────────────────────────
                 if (subNotes.isNotEmpty()) {

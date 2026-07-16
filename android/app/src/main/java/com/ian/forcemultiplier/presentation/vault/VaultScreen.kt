@@ -522,86 +522,76 @@ fun VaultScreen(
 // ─── Note list item ────────────────────────────────────────────────────────────
 @Composable
 private fun NoteListItem(note: NoteDto, onClick: () -> Unit) {
-    val dateStr = note.createdAt?.let { formatListDate(it) } ?: ""
-    val tagList = note.tags?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+    val tagList   = note.tags?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+    val shortDate = note.createdAt?.let { formatShortDate(it) } ?: ""
 
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.Top
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // Date column
-        Column(
-            modifier = Modifier.width(44.dp).padding(top = 2.dp),
-            horizontalAlignment = Alignment.Start
+        // Page icon
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Surface2Dark),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                dateStr.take(2),   // day number
-                color = MutedText,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 20.sp
-            )
-            Text(
-                dateStr.drop(3).take(3).uppercase(), // month abbrev
-                color = MutedText,
-                fontSize = 10.sp,
-                letterSpacing = 0.5.sp
+            Icon(
+                painter = painterResource(R.drawable.ic_note),
+                contentDescription = null,
+                tint = MutedText.copy(alpha = 0.55f),
+                modifier = Modifier.size(16.dp)
             )
         }
 
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(13.dp))
 
-        // Content
+        // Title + preview + tags
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 note.title.ifBlank { "Untitled" },
                 color = OnSurface,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (!note.content.isNullOrBlank()) {
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
                     note.content,
                     color = MutedText,
-                    fontSize = 13.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 18.sp
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             if (tagList.isNotEmpty()) {
-                Spacer(Modifier.height(7.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    val visible = tagList.take(3)
-                    val extra  = tagList.size - visible.size
-                    visible.forEach { tag ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(Surface2Dark)
-                                .border(1.dp, BorderDark, RoundedCornerShape(5.dp))
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                        ) {
-                            Text(tag, color = MutedText, fontSize = 10.sp)
-                        }
+                Spacer(Modifier.height(5.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    tagList.take(2).forEach { tag ->
+                        Text(
+                            "# $tag",
+                            color = GreenPrimary.copy(alpha = 0.65f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                    if (extra > 0) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(Surface2Dark)
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                        ) {
-                            Text("+$extra", color = MutedText, fontSize = 10.sp)
-                        }
+                    if (tagList.size > 2) {
+                        Text("+${tagList.size - 2} more", color = MutedText, fontSize = 10.sp)
                     }
                 }
             }
         }
+
+        Spacer(Modifier.width(10.dp))
+
+        // Relative date
+        Text(shortDate, color = MutedText.copy(alpha = 0.55f), fontSize = 11.sp)
     }
 }
 
@@ -756,35 +746,25 @@ private fun NotesHeroHeader(
     folderCount: Int,
     onClearFolder: () -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(SurfaceDark, BgDark)))
-            .border(1.dp, BorderDark.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-            .padding(16.dp)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = folder?.name ?: "All notes",
             color = OnSurface,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold
         )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = if (folder != null) "Focused view for this folder." else "Capture, organize, and find notes quickly.",
-            color = MutedText,
-            fontSize = 13.sp
-        )
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            StatPill(label = "Folders", value = folderCount.toString())
-            StatPill(label = "Mode", value = if (folder != null) "Filtered" else "All notes")
-            if (folder != null) {
-                TextButton(onClick = onClearFolder, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
-                    Text("Clear folder", color = GreenPrimary)
-                }
+        if (folder != null) {
+            TextButton(
+                onClick = onClearFolder,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text("← All notes", color = GreenPrimary, fontSize = 13.sp)
             }
         }
     }
@@ -956,10 +936,16 @@ private fun groupNotesByDate(notes: List<NoteDto>): List<Pair<String, List<NoteD
     }
 }
 
-// Returns "20 APR" format
-private fun formatListDate(raw: String): String {
+private fun formatShortDate(raw: String): String {
     val cal = parseDateToCal(raw) ?: return ""
-    return SimpleDateFormat("dd MMM", Locale.getDefault()).format(cal.time).uppercase()
+    val now = Calendar.getInstance()
+    val diffDays = ((now.timeInMillis - cal.timeInMillis) / (1000L * 60 * 60 * 24)).toInt()
+    return when {
+        diffDays < 1 -> "Today"
+        diffDays < 2 -> "Yesterday"
+        diffDays < 7 -> "${diffDays}d ago"
+        else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(cal.time)
+    }
 }
 
 private fun parseDateToCal(raw: String): Calendar? {
