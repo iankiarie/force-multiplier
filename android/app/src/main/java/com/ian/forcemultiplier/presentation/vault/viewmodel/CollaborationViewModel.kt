@@ -8,11 +8,10 @@ import com.ian.forcemultiplier.domain.model.NoteComment
 import com.ian.forcemultiplier.domain.repository.CollaborationRepository
 import com.ian.forcemultiplier.util.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -37,31 +36,33 @@ class CollaborationViewModel @Inject constructor(
     private val _inviteResult = MutableStateFlow<Resource<Unit>?>(null)
     val inviteResult: StateFlow<Resource<Unit>?> = _inviteResult.asStateFlow()
 
-    // Track the active note so we can reload
+    // Track active jobs to avoid multiple parallel subscriptions/collectors
     private var activeNoteId: String? = null
+    private var collabsJob: Job? = null
+    private var commentsJob: Job? = null
 
     // ── Public actions ────────────────────────────────────────────────────────
 
     fun loadForNote(noteId: String) {
+        if (activeNoteId == noteId) return
         activeNoteId = noteId
+
+        // Cancel previous note's listeners
+        collabsJob?.cancel()
+        commentsJob?.cancel()
+
         viewModelScope.launch {
             // Resolve role first so UI knows what to show
             _myRole.value = repo.getMyRole(noteId)
-            loadCollaborators(noteId)
-            subscribeToComments(noteId)
-        }
-    }
-
-    private fun loadCollaborators(noteId: String) {
-        viewModelScope.launch {
-            repo.getCollaborators(noteId).onEach { _collaborators.value = it }.launchIn(this)
-        }
-    }
-
-    private fun subscribeToComments(noteId: String) {
-        viewModelScope.launch {
-            repo.subscribeToComments(noteId).collect { list ->
-                _comments.value = Resource.Success(list)
+            
+            collabsJob = launch {
+                repo.getCollaborators(noteId).collect { _collaborators.value = it }
+            }
+            
+            commentsJob = launch {
+                repo.subscribeToComments(noteId).collect { list ->
+                    _comments.value = Resource.Success(list)
+                }
             }
         }
     }
@@ -72,7 +73,12 @@ class CollaborationViewModel @Inject constructor(
             _inviteResult.value = Resource.Loading()
             repo.inviteCollaborator(noteId, email, role).collect { result ->
                 _inviteResult.value = result
-                if (result is Resource.Success) loadCollaborators(noteId)
+                if (result is Resource.Success) {
+                    // Trigger a refresh of the collaborators list
+                    viewModelScope.launch {
+                        repo.getCollaborators(noteId).collect { _collaborators.value = it }
+                    }
+                }
             }
         }
     }
@@ -80,7 +86,7 @@ class CollaborationViewModel @Inject constructor(
     fun updateRole(collaboratorId: String, role: CollaborationRole) {
         viewModelScope.launch {
             repo.updateCollaboratorRole(collaboratorId, role).collect {
-                activeNoteId?.let { noteId -> loadCollaborators(noteId) }
+                activeNoteId?.let { noteId -> loadForNote(noteId) }
             }
         }
     }
@@ -88,7 +94,7 @@ class CollaborationViewModel @Inject constructor(
     fun removeCollaborator(collaboratorId: String) {
         viewModelScope.launch {
             repo.removeCollaborator(collaboratorId).collect {
-                activeNoteId?.let { noteId -> loadCollaborators(noteId) }
+                activeNoteId?.let { noteId -> loadForNote(noteId) }
             }
         }
     }
@@ -104,8 +110,7 @@ class CollaborationViewModel @Inject constructor(
     fun resolveComment(commentId: String) {
         viewModelScope.launch {
             repo.resolveComment(commentId).collect {
-                // refresh on resolve
-                activeNoteId?.let { noteId -> subscribeToComments(noteId) }
+                // Realtime will pick up the update automatically
             }
         }
     }
@@ -113,9 +118,7 @@ class CollaborationViewModel @Inject constructor(
     fun deleteComment(commentId: String) {
         viewModelScope.launch {
             repo.deleteComment(commentId).collect {
-                // remove locally immediately for snappy UX
-                val current = (_comments.value as? Resource.Success)?.data ?: return@collect
-                _comments.value = Resource.Success(current.filter { it.id != commentId })
+                // Realtime will pick up the deletion automatically
             }
         }
     }

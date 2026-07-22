@@ -37,12 +37,22 @@ import com.ian.forcemultiplier.MainActivity
 import com.ian.forcemultiplier.R
 import com.ian.forcemultiplier.core.theme.ForceMultiplierTheme
 import com.ian.forcemultiplier.data.repository.NoteRepositoryImpl
+import com.ian.forcemultiplier.domain.repository.CollaborationRepository
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.builtin.IDToken
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.CustomCredential
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -51,10 +61,12 @@ class LoginActivity : ComponentActivity() {
 
     @Inject lateinit var supabaseClient: SupabaseClient
     @Inject lateinit var noteRepositoryImpl: NoteRepositoryImpl
+    @Inject lateinit var collaborationRepository: CollaborationRepository
 
     private var hasOpenedMainActivity = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         handleAuthCallback(intent)
         if (supabaseClient.auth.currentUserOrNull() != null) {
@@ -68,6 +80,11 @@ class LoginActivity : ComponentActivity() {
                     onAuthenticated = { userId ->
                         lifecycleScope.launch {
                             noteRepositoryImpl.migrateGuestNotesToUser(userId).collect { }
+                            // Claim any pending note-collaboration invites sent to this email
+                            val email = supabaseClient.auth.currentUserOrNull()?.email
+                            if (!email.isNullOrBlank()) {
+                                collaborationRepository.claimPendingInvites(email).collect { }
+                            }
                         }
                     },
                     onLoginSuccess = {
@@ -401,9 +418,37 @@ fun LoginScreen(
                             isLoading = true
                             error = null
                             try {
-                                supabaseClient.auth.signInWith(Google) {
-                                    nativeFlow = true
-                                    serverClientId = context.getString(R.string.google_web_client_id)
+                                val credentialManager = CredentialManager.create(context)
+                                val webClientId = context.getString(R.string.google_web_client_id)
+
+                                // Attempt 1: GetGoogleIdOption (silent / bottom-sheet)
+                                val credential = try {
+                                    val googleIdOption = GetGoogleIdOption.Builder()
+                                        .setFilterByAuthorizedAccounts(false)
+                                        .setServerClientId(webClientId)
+                                        .setAutoSelectEnabled(false)
+                                        .build()
+                                    val request = GetCredentialRequest.Builder()
+                                        .addCredentialOption(googleIdOption)
+                                        .build()
+                                    credentialManager.getCredential(context, request).credential
+                                } catch (e: NoCredentialException) {
+                                    // Attempt 2: Full account picker (GetSignInWithGoogleOption)
+                                    val signInOption = GetSignInWithGoogleOption.Builder(webClientId).build()
+                                    val request = GetCredentialRequest.Builder()
+                                        .addCredentialOption(signInOption)
+                                        .build()
+                                    credentialManager.getCredential(context, request).credential
+                                }
+
+                                if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                    supabaseClient.auth.signInWith(IDToken) {
+                                        this.idToken = googleIdTokenCredential.idToken
+                                        this.provider = Google
+                                    }
+                                } else {
+                                    throw Exception("Unexpected credential type")
                                 }
                                 supabaseClient.auth.currentUserOrNull()?.id?.let(onAuthenticated)
                                 onLoginSuccess()

@@ -15,6 +15,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.JsonObject
 import javax.inject.Inject
 import java.util.UUID
 
@@ -120,16 +121,47 @@ class NoteRepositoryImpl @Inject constructor(
                         filter { eq("user_id", user.id) }
                     }.decodeList<NoteDto>()
 
+                // Also fetch notes the user has been invited to (accepted collaborator)
+                // Step 1: get note IDs from note_collaborators where user accepted
+                val collabNoteIds = try {
+                    supabaseClient.postgrest["note_collaborators"]
+                        .select {
+                            filter {
+                                eq("user_id", user.id)
+                                eq("accepted", true)
+                            }
+                        }
+                        .decodeList<JsonObject>()
+                        .mapNotNull { it["note_id"]?.let { v ->
+                            v.toString().trim('"')
+                        }}
+                } catch (e: Exception) { emptyList() }
+
+                // Step 2: fetch those notes (DB RLS now allows it)
+                val sharedNotes: List<NoteDto> = if (collabNoteIds.isNotEmpty()) {
+                    try {
+                        collabNoteIds.mapNotNull { noteId ->
+                            try {
+                                supabaseClient.postgrest["notes"]
+                                    .select { filter { eq("id", noteId) } }
+                                    .decodeList<NoteDto>()
+                                    .firstOrNull()
+                            } catch (e: Exception) { null }
+                        }
+                    } catch (e: Exception) { emptyList() }
+                } else emptyList()
+
                 migrateNotesToUser(user.id)
 
                 // Cache remotely fetched notes locally
                 remoteNotes.forEach { dao.insertNote(it.toNoteEntity()) }
+                sharedNotes.forEach { dao.insertNote(it.toNoteEntity()) }
 
                 migrateUnassignedNotesToPrimaryFolder(user.id)
 
-                // Merge with any offline-only notes for this user and guest/offline scope
+                // Merge owned + shared + local-only notes
                 val localOnly = getLocalNotesForSession(user.id)
-                val merged = (remoteNotes + localOnly.map { it.toNoteDto() }).distinctBy { it.id }
+                val merged = (remoteNotes + sharedNotes + localOnly.map { it.toNoteDto() }).distinctBy { it.id }
                 emit(Resource.Success(merged))
             } else {
                 // Offline / logged-out: serve from local DB

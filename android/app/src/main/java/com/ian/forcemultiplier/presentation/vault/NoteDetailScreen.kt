@@ -34,6 +34,7 @@ import com.ian.forcemultiplier.R
 import com.ian.forcemultiplier.core.theme.FMColors
 import com.ian.forcemultiplier.data.remote.dto.NoteDto
 import com.ian.forcemultiplier.presentation.vault.viewmodel.CollaborationViewModel
+import com.ian.forcemultiplier.presentation.vault.viewmodel.VaultViewModel
 import com.ian.forcemultiplier.util.Resource
 import kotlinx.coroutines.flow.debounce
 import java.text.SimpleDateFormat
@@ -95,7 +96,7 @@ fun NoteDetailScreen(
     val scope            = rememberCoroutineScope()
     val scrollState      = rememberScrollState()
 
-    val folders = (foldersState as? Resource.Success)?.data.orEmpty()
+    val folders = (foldersState as? Resource.Success<*>?)?.data as? List<com.ian.forcemultiplier.domain.model.Folder> ?: emptyList()
     val selectedFolder = folders.firstOrNull { it.id == selectedFolderId }
     val shouldSyncVaultFolderFilter = activeFolderFilter != null
 
@@ -125,7 +126,7 @@ fun NoteDetailScreen(
     }
 
     val subNotes = remember(allNotesState, savedId) {
-        if (allNotesState is Resource.Success) allNotesState.data?.filter { it.parentId == savedId } ?: emptyList()
+        if (allNotesState is Resource.Success<*>) (allNotesState.data as? List<NoteDto>)?.filter { it.parentId == savedId } ?: emptyList()
         else emptyList()
     }
 
@@ -133,7 +134,6 @@ fun NoteDetailScreen(
     LaunchedEffect(noteId) {
         if (noteId != null && noteId != "new") {
             viewModel.getNoteById(noteId)
-            collaborationViewModel.loadForNote(noteId)   // load collaborators + subscribe to comments
         } else {
             viewModel.clearCurrentNote()
             if (template != null) {
@@ -146,21 +146,28 @@ fun NoteDetailScreen(
         }
     }
 
+    LaunchedEffect(savedId) {
+        if (savedId != null) {
+            collaborationViewModel.loadForNote(savedId!!)   // load collaborators + subscribe to comments
+        }
+    }
+
     LaunchedEffect(currentNoteState) {
         val state = currentNoteState
-        if (state is Resource.Success && state.data != null) {
+        if (state is Resource.Success<*> && state.data != null) {
+            val note = state.data as NoteDto
             if (isInitialLoad) {
-                title = state.data.title
-                contentState = TextFieldValue(state.data.content ?: "")
-                tags = state.data.tags ?: ""
-                selectedFolderId = state.data.folderId
+                title = note.title
+                contentState = TextFieldValue(note.content ?: "")
+                tags = note.tags ?: ""
+                selectedFolderId = note.folderId
                 isInitialLoad = false
             } else {
-                if (state.data.id != null) savedId = state.data.id
-                selectedFolderId = state.data.folderId ?: selectedFolderId
+                if (note.id != null) savedId = note.id
+                selectedFolderId = note.folderId ?: selectedFolderId
                 saveStatus = SaveStatus.Saved
             }
-        } else if (state is Resource.Error && !isInitialLoad) {
+        } else if (state is Resource.Error<*> && !isInitialLoad) {
             saveStatus = SaveStatus.Error
         }
     }

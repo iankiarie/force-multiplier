@@ -2,5 +2,5 @@
     <string name="app_name">ForceMultiplier</string>
     <!-- Replace YOUR_WEB_CLIENT_ID with the Web client ID from Google Cloud Console
          (APIs & Services → Credentials → OAuth 2.0 Client IDs → Web client) -->
-    <string name="google_web_client_id">373525157580-17h1j28isnghagt43oglc3lmg74f28ot.apps.googleusercontent.com</string>
+    <string name="google_web_client_id">904949327788-20oh9j913jlkvb6bn986ar11c9801pg1.apps.googleusercontent.com</string>
 </resources>

@@ -18,5 +18,6 @@ data class UserDto(
     @SerialName("rank") val rank: Int? = null,
     @SerialName("location") val location: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("updated_at") val updatedAt: String? = null
+    @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("coin_balance") val coinBalance: Int = 100
 )

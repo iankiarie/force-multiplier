@@ -13,6 +13,7 @@ data class PredictionDto(
     @SerialName("ends_at") val endsAt: String,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("resolved_at") val resolvedAt: String? = null,
+    @SerialName("winning_option_id") val winningOptionId: String? = null,
     @SerialName("created_by") val createdBy: String?,
     @SerialName("options") val options: List<PredictionOptionDto> = emptyList()
 )

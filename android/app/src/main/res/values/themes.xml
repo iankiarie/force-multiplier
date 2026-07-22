@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash screen theme — used in AndroidManifest for LoginActivity -->
+    <style name="Theme.ForceMultiplier.Splash" parent="Theme.SplashScreen">
+        <!-- Pink brand background (#e6517b matches ic_launcher_background) -->
+        <item name="windowSplashScreenBackground">#e6517b</item>
+        <!-- Use the xxxhdpi foreground PNG as the splash icon -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <!-- Icon background (white circle behind the helmet, optional) -->
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <!-- The theme to switch to AFTER the splash is done -->
+        <item name="postSplashScreenTheme">@android:style/Theme.Material.Light.NoActionBar</item>
+    </style>
+</resources>

@@ -13,6 +13,11 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 
 class DashboardRepositoryImpl @Inject constructor(
@@ -35,10 +40,47 @@ class DashboardRepositoryImpl @Inject constructor(
                 }
 
                 // 2. Fetch fresh profile data from Supabase
-                val remoteUserDto = supabaseClient.postgrest["users"]
-                    .select {
-                        filter { eq("id", authUser.id) }
-                    }.decodeSingle<UserDto>()
+                //    For brand-new Google sign-ins the row may not exist yet — upsert it.
+                val existing = supabaseClient.postgrest["users"]
+                    .select { filter { eq("id", authUser.id) } }
+                    .decodeList<UserDto>()
+
+                val remoteUserDto = if (existing.isEmpty()) {
+                    // First login — create the profile row
+                    val displayName = authUser.userMetadata
+                        ?.jsonObject?.get("full_name")?.jsonPrimitive?.contentOrNull
+                        ?: authUser.email?.substringBefore("@") ?: "User"
+                    val emailPrefix = authUser.email?.substringBefore("@") ?: authUser.id.take(8)
+                    // UserDto has extra fields (coin_balance, role, streak …) not in public.users.
+                    // Use buildJsonObject to send ONLY the columns that exist in the table.
+                    val userPayload = buildJsonObject {
+                        put("id",        authUser.id)
+                        put("email",     authUser.email ?: "")
+                        put("username",  emailPrefix)
+                        put("full_name", displayName)
+                        put("points",    0)
+                        put("is_active", true)
+                    }
+                    supabaseClient.postgrest["users"].upsert(userPayload) {
+                        onConflict = "id"
+                    }
+                    // Ensure user_profiles row exists (coin_balance defaults to 100 in DB)
+                    supabaseClient.postgrest["user_profiles"].upsert(
+                        buildJsonObject { put("id", authUser.id) }
+                    ) { onConflict = "id" }
+                    // Build a local UserDto to return to the caller
+                    val newUser = UserDto(
+                        id       = authUser.id,
+                        email    = authUser.email ?: "",
+                        username = emailPrefix,
+                        fullName = displayName,
+                        points   = 0,
+                        isActive = true
+                    )
+                    newUser
+                } else {
+                    existing.first()
+                }
 
                 // 3. Always use the auth layer email (source of truth for identity)
                 val authEmail = authUser.email ?: remoteUserDto.email

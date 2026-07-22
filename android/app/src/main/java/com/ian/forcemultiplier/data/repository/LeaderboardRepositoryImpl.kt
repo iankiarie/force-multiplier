@@ -22,26 +22,9 @@ class LeaderboardRepositoryImpl @Inject constructor(
                     order("points", order = Order.DESCENDING)
                     limit(20)
                 }.decodeList<UserDto>()
-            
-            // Seeding/Ensuring specific top users for Demo
-            val seededUsers = listOf(
-                UserDto(id = "1", email = "jeddy@example.com", username = "jeddy", fullName = "Jeddy Awuor", points = 1250, role = "admin", streak = 15, accuracy = 0.92f),
-                UserDto(id = "2", email = "roy@example.com", username = "roy", fullName = "Roy Okite", points = 1100, role = "user", streak = 8, accuracy = 0.85f),
-                UserDto(id = "3", email = "daniel@example.com", username = "daniel", fullName = "Daniel Kariuki", points = 950, role = "user", streak = 12, accuracy = 0.88f)
-            )
-            
-            val finalLeaderboard = (seededUsers + leaderboard.filter { it.fullName !in seededUsers.map { u -> u.fullName } })
-                .sortedByDescending { it.points }
-            
-            emit(Resource.Success(finalLeaderboard))
+            emit(Resource.Success(leaderboard))
         } catch (e: Exception) {
-            // Fallback to seeded data if network fails
-            val seededUsers = listOf(
-                UserDto(id = "1", email = "jeddy@example.com", username = "jeddy", fullName = "Jeddy Awuor", points = 1250, role = "admin", streak = 15, accuracy = 0.92f),
-                UserDto(id = "2", email = "roy@example.com", username = "roy", fullName = "Roy Okite", points = 1100, role = "user", streak = 8, accuracy = 0.85f),
-                UserDto(id = "3", email = "daniel@example.com", username = "daniel", fullName = "Daniel Kariuki", points = 950, role = "user", streak = 12, accuracy = 0.88f)
-            )
-            emit(Resource.Success(seededUsers))
+            emit(Resource.Error(e.localizedMessage ?: "Failed to load leaderboard"))
         }
     }
 }

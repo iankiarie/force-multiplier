@@ -14,9 +14,15 @@ import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.realtime.decodeRecord
+import io.github.jan.supabase.realtime.decodeOldRecord
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -95,7 +101,7 @@ class CollaborationRepositoryImpl @Inject constructor(
         emit(Resource.Loading())
         try {
             supabase.postgrest["note_collaborators"].update(
-                mapOf("role" to role.key)
+                buildJsonObject { put("role", role.key) }
             ) { filter { eq("id", collaboratorId) } }
             emit(Resource.Success(Unit))
         } catch (e: Exception) {
@@ -119,11 +125,11 @@ class CollaborationRepositoryImpl @Inject constructor(
         val uid = currentUserId ?: run { emit(Resource.Success(Unit)); return@flow }
         try {
             supabase.postgrest["note_collaborators"].update(
-                mapOf("user_id" to uid, "accepted" to true)
+                buildJsonObject { put("user_id", uid); put("accepted", true) }
             ) {
                 filter {
                     eq("invited_email", email.trim().lowercase())
-                    isNull("user_id")
+                    exact("user_id", null)
                 }
             }
             emit(Resource.Success(Unit))
@@ -185,7 +191,7 @@ class CollaborationRepositoryImpl @Inject constructor(
         emit(Resource.Loading())
         try {
             supabase.postgrest["note_comments"].update(
-                mapOf("resolved" to true)
+                buildJsonObject { put("resolved", true) }
             ) { filter { eq("id", commentId) } }
             emit(Resource.Success(Unit))
         } catch (e: Exception) {
@@ -218,26 +224,48 @@ class CollaborationRepositoryImpl @Inject constructor(
             trySend(comments.toList())
         } catch (_: Exception) {}
 
-        // Listen for inserts
-        val inserts = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+        // 1. Define the flow BEFORE subscribing
+        val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "note_comments"
-            filter = "note_id=eq.$noteId"
+            filter("note_id", FilterOperator.EQ, noteId)
         }
 
+        // 2. Subscribe to the channel
+        channel.subscribe()
+
+        // 3. Collect changes
         launch {
-            inserts.collect { action ->
-                try {
-                    val newComment = action.decodeRecord<NoteCommentDto>().toDomain()
-                    // avoid duplicates (seed may have included it)
-                    if (comments.none { it.id == newComment.id }) {
-                        comments.add(newComment)
-                        trySend(comments.toList())
+            changes.collect { action ->
+                when (action) {
+                    is PostgresAction.Insert -> {
+                        val new = action.decodeRecord<NoteCommentDto>().toDomain()
+                        if (comments.none { it.id == new.id }) {
+                            comments.add(new)
+                        }
                     }
-                } catch (_: Exception) {}
+                    is PostgresAction.Update -> {
+                        val updated = action.decodeRecord<NoteCommentDto>().toDomain()
+                        val index = comments.indexOfFirst { it.id == updated.id }
+                        if (index != -1) {
+                            comments[index] = updated
+                        } else {
+                            comments.add(updated)
+                        }
+                    }
+                    is PostgresAction.Delete -> {
+                        val old = action.decodeOldRecord<NoteCommentDto>()
+                        comments.removeAll { it.id == old.id }
+                    }
+                    else -> {}
+                }
+                trySend(comments.toList().sortedBy { it.createdAt ?: "" })
             }
         }
 
-        channel.subscribe()
-        awaitClose { supabase.realtime.removeChannel(channel) }
+        awaitClose {
+            launch {
+                supabase.realtime.removeChannel(channel)
+            }
+        }
     }
 }

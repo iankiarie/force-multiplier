@@ -245,6 +245,7 @@ fun CollaborationSheet(
 }
 
 // ── Single collaborator row ────────────────────────────────────────────────────
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CollaboratorRow(
     collaborator: Collaborator,
